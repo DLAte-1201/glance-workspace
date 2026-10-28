@@ -1,0 +1,62 @@
+{
+  "product": "Glance",
+  "characters": [
+    {
+      "id": "codex",
+      "role": "Codex",
+      "display_name": "지피쨩",
+      "reference_record_name": "지피쨩",
+      "source_path": "[private source path omitted]",
+      "asset": "/assets/codex-reference.png",
+      "sha256": "6b13e8c9493ed51023aa4c4b0222e2074540a255cdc9faed03e3d5a5142a8b5e",
+      "bytes": 298534,
+      "byte_identical_original": true,
+      "crop_css_only": {
+        "x": 228,
+        "y": 344,
+        "square": 136
+      },
+      "world_representation": "WebGL2 indexed vec3 triangle meshes with depth buffer and orthographic camera; existing 2D SVG fallback retained; runtime visual/GPU QA pending",
+      "source_image_modified": false
+    },
+    {
+      "id": "claude",
+      "role": "Claude",
+      "display_name": "클로쨩",
+      "reference_record_name": "클로드쨩",
+      "source_path": "[private source path omitted]",
+      "asset": "/assets/claude-reference.png",
+      "sha256": "ab4f3ed04b1e7a7d87eb3b4a57f77f7cb8043b8ee647e75429c876036f34a1ae",
+      "bytes": 364727,
+      "byte_identical_original": true,
+      "crop_css_only": {
+        "x": 18,
+        "y": 50,
+        "square": 112
+      },
+      "world_representation": "WebGL2 indexed vec3 triangle meshes with depth buffer and orthographic camera; existing 2D SVG fallback retained; runtime visual/GPU QA pending",
+      "source_image_modified": false
+    },
+    {
+      "id": "gemini",
+      "role": "Gemini",
+      "display_name": "젬쨩",
+      "reference_record_name": "젬쨩",
+      "source_path": "[private source path omitted]",
+      "asset": "/assets/gemini-reference.jpg",
+      "sha256": "235775c37eecd6db38ac5bca6a93941e41a40a5ae4a02f1747bd7240a0aa5326",
+      "bytes": 39186,
+      "byte_identical_original": true,
+      "crop_css_only": {
+        "x": 82,
+        "y": 16,
+        "square": 210
+      },
+      "world_representation": "WebGL2 indexed vec3 triangle meshes with depth buffer and orthographic camera; existing 2D SVG fallback retained; runtime visual/GPU QA pending",
+      "source_image_modified": false
+    }
+  ],
+  "display_name_authority": "Current parent-delegated user character names; original registry names preserved separately",
+  "motion": "transform-only; work/walk only actual matching running records; calm idle decoration is not execution evidence",
+  "runtime_visual_qa": "Pending: parent browser tools could not connect; source and lifecycle tests are not GPU/visual verification."
+}

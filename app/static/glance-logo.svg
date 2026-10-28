@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" role="img" aria-labelledby="glance-title glance-description">
+  <title id="glance-title">Glance</title>
+  <desc id="glance-description">청록색, 주황색, 파란색 고리 세 개가 앞뒤로 교차하는 Glance 독자 심볼</desc>
+  <style>
+    .ring-chatgpt { stroke: #198a78; }
+    .ring-claude { stroke: #c97950; }
+    .ring-gemini { stroke: #4b7fd1; }
+    @media (prefers-color-scheme: dark) {
+      .ring-chatgpt { stroke: #57c8ad; }
+      .ring-claude { stroke: #eba174; }
+      .ring-gemini { stroke: #7ea8f2; }
+    }
+  </style>
+  <defs>
+    <mask id="glance-chatgpt-underpasses" maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64" style="mask-type:luminance">
+      <rect width="64" height="64" fill="white"/>
+      <circle cx="32" cy="10.7712" r="4" fill="black"/>
+      <circle cx="38.9216" cy="25.5751" r="4" fill="black"/>
+    </mask>
+    <mask id="glance-claude-underpasses" maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64" style="mask-type:luminance">
+      <rect width="64" height="64" fill="white"/>
+      <circle cx="32" cy="37.2288" r="4" fill="black"/>
+      <circle cx="47.9216" cy="38.4249" r="4" fill="black"/>
+    </mask>
+    <mask id="glance-gemini-underpasses" maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64" style="mask-type:luminance">
+      <rect width="64" height="64" fill="white"/>
+      <circle cx="16.0784" cy="38.4249" r="4" fill="black"/>
+      <circle cx="25.0784" cy="25.5751" r="4" fill="black"/>
+    </mask>
+  </defs>
+  <g stroke-width="4.5">
+    <circle class="ring-chatgpt" cx="23" cy="24" r="16" mask="url(#glance-chatgpt-underpasses)"/>
+    <circle class="ring-claude" cx="41" cy="24" r="16" mask="url(#glance-claude-underpasses)"/>
+    <circle class="ring-gemini" cx="32" cy="40" r="16" mask="url(#glance-gemini-underpasses)"/>
+  </g>
+</svg>

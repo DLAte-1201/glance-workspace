@@ -1,0 +1,1 @@
+Fabricated local staged-save fixture. No external provider delivery is requested.

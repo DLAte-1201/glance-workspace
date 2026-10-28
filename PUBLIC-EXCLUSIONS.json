@@ -1,0 +1,724 @@
+{
+  "excluded": [
+    {
+      "path": "AGENTS.md",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "COMBINED-MANIFEST.json",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "COMBINED-SHA256SUMS.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "EXTERNAL-ARTIFACT-EXCLUSIONS.json",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "EXTERNAL-ARTIFACT-MANIFEST.json",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "EXTERNAL-ARTIFACTS.md",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "EXTERNAL-SHA256SUMS.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "MANIFEST.json",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "README.md",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "START-HERE.md",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/LIBRARY-INPUTS.json",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/LOCAL-ARCHIVES.json",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/claude/chat-integration/CHAT-INTEGRATION.md",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/claude/chat-integration/SHA256SUMS.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/claude/chat-integration/changed/CHAT-INTEGRATION.md",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/claude/chat-integration/checks/logs/after_node_exit.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/claude/chat-integration/checks/logs/after_node_stdout.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/claude/chat-integration/checks/logs/after_unittest_exit.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/claude/chat-integration/checks/logs/after_unittest_stderr.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/claude/chat-integration/checks/logs/after_unittest_stdout.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/claude/chat-integration/checks/logs/baseline_node_exit.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/claude/chat-integration/checks/logs/baseline_node_stdout.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/claude/chat-integration/checks/logs/baseline_unittest_exit.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/claude/chat-integration/checks/logs/baseline_unittest_stderr.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/claude/chat-integration/checks/logs/baseline_unittest_stdout.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/claude/chat-integration/checks/logs/baseline_verify_http_exit.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/claude/chat-integration/checks/logs/baseline_verify_http_stderr.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/claude/chat-integration/checks/logs/baseline_verify_http_stdout.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/claude/chat-integration/checks/logs/chat_exit.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/claude/chat-integration/checks/logs/chat_stderr.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/claude/chat-integration/checks/logs/chat_stdout.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/claude/chat-integration/checks/logs/chat_try1_stderr.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/claude/chat-integration/checks/logs/chat_try1_stdout.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/claude/chat-integration/checks/logs/final_node_check.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/claude/chat-integration/checks/logs/final_node_exit.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/claude/chat-integration/checks/logs/final_node_stdout.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/claude/chat-integration/checks/logs/final_unittest_exit.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/claude/chat-integration/checks/logs/final_unittest_stderr.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/claude/chat-integration/checks/logs/final_unittest_stdout.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/claude/chat-integration/checks/logs/final_verify_http_exit.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/claude/chat-integration/checks/logs/final_verify_http_stderr.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/claude/chat-integration/checks/logs/final_verify_http_stdout.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/claude/chat-integration/checks/logs/ui_check_exit.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/claude/chat-integration/checks/logs/ui_check_result.json",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/claude/chat-integration/checks/logs/ui_check_stderr.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/claude/chat-integration/checks/logs/ui_check_stdout.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/claude/chat-integration/checks/logs/ui_server_stderr.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/claude/chat-integration/checks/logs/ui_server_stdout.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/claude/chat-integration/checks/test_chat.py",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/claude/chat-integration/checks/ui_check.py",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/claude/chat-integration/shots/01_three_providers.png",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/claude/chat-integration/shots/02_cross_review.png",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/claude/chat-integration/shots/03_partial_failure.png",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/claude/chat-integration/shots/04_live_pending.png",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/claude/chat-integration/shots/05_after_reload.png",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/gemini/unified-chat/readme_unified_chat.md",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/gemini/unified-chat/source/claude-official-install.ps1",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/gemini/unified-chat/source/prepare_login.py",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/gemini/unified-chat/source/probe_codex_smoke.py",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/gemini/unified-chat/source/run_claude_smoke.py",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "contributions/gemini/unified-chat/source/run_codex_smoke.py",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "evidence/AUDIT.md",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "evidence/CHARACTER-AUDIT.md",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "evidence/CHARACTER-TEST-RESULTS.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "evidence/DESIGN.md",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "evidence/SMOKE-AUDIT.md",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "evidence/SMOKE-COMPLETION.md",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "evidence/SMOKE-RESULTS.json",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "evidence/SPEC.md",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "evidence/TEST-RESULTS.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "evidence/THREE-D-AUDIT.md",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "evidence/THREE-D-LOCAL-QA.json",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "evidence/THREE-D-NEXT-SCOPE.md",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "evidence/TRANSPORT-AUDIT.md",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "evidence/TRANSPORT-SPEC.md",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "evidence/TRANSPORT-TEST-RESULTS.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "evidence/gemini/independent-regression/README.md",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "evidence/gemini/independent-regression/SHA256SUMS.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "evidence/gemini/independent-regression/TARGET-SOURCE-HASHES.json",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "evidence/gemini/independent-regression/logs/01_independent_python_regression.command.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "evidence/gemini/independent-regression/logs/01_independent_python_regression.exit_code.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "evidence/gemini/independent-regression/logs/01_independent_python_regression.stderr.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "evidence/gemini/independent-regression/logs/01_independent_python_regression.stdout.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "evidence/gemini/independent-regression/logs/02_independent_ui_node_regression.command.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "evidence/gemini/independent-regression/logs/02_independent_ui_node_regression.exit_code.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "evidence/gemini/independent-regression/logs/02_independent_ui_node_regression.stderr.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "evidence/gemini/independent-regression/logs/02_independent_ui_node_regression.stdout.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "evidence/gemini/independent-regression/logs/03_claude_test_chat.command.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "evidence/gemini/independent-regression/logs/03_claude_test_chat.exit_code.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "evidence/gemini/independent-regression/logs/03_claude_test_chat.stderr.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "evidence/gemini/independent-regression/logs/03_claude_test_chat.stdout.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "evidence/gemini/independent-regression/logs/04_node_projection_and_world3d.command.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "evidence/gemini/independent-regression/logs/04_node_projection_and_world3d.exit_code.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "evidence/gemini/independent-regression/logs/04_node_projection_and_world3d.stderr.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "evidence/gemini/independent-regression/logs/04_node_projection_and_world3d.stdout.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "evidence/gemini/independent-regression/logs/05_node_syntax_check.command.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "evidence/gemini/independent-regression/logs/05_node_syntax_check.exit_code.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "evidence/gemini/independent-regression/logs/05_node_syntax_check.stderr.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "evidence/gemini/independent-regression/logs/05_node_syntax_check.stdout.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "evidence/gemini/independent-regression/logs/environment.json",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "handoff/COMBINED-STATUS.json",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "handoff/CONNECTION-PATH.md",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "handoff/CURRENT-STATUS.json",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "media/README.md",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/promo-v1/MEDIA-INDEX.json",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/promo-v1/glance-promo-v1_notes.md",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/promo-v1/source/cap/capture2_log.json",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/promo-v1/source/cap/capture_log.json",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/promo-v1/source/cap/svgs.json",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/promo-v1/source/capture.py",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/promo-v1/source/capture2.py",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/promo-v1/source/comp/comp.html",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/promo-v1/source/comp/comp.js",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/promo-v1/source/comp/grain.png",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/promo-v1/source/music_sync.py",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/promo-v1/source/render_comp.py",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/promo-v1/source/timing.json",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/README.md",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/README_v3.md",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/SHA256SUMS.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/bench.py",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/bench_v2.json",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/bench_v3.json",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/check_fix1.py",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/check_out/A01_chat_start.png",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/check_out/A02_compare.png",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/check_out/A03_draft.png",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/check_out/A04_world_building.png",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/check_out/A05_world_built.png",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/check_out/A06_world_keep_autonomy.png",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/check_out/A07_followup_compare.png",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/check_out/A08_restored.png",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/check_out/B01_partial_chat.png",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/check_out/C01_burst_same.png",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/check_out/C02_burst_diff.png",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/check_out/D01_corrupt_banner.png",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/check_out/E01_dark_village.png",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/check_out/F05_same20_chips.png",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/check_out/F08_cancelled_after_reload.png",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/check_out/K01_default.png",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/check_out/K02_focus.png",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/check_out/K03_roof_ghost.png",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/check_out/K04_roof_hidden.png",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/check_out/K05_topview.png",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/check_out/M01_migrated.png",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/check_out/V01_village.png",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/check_out/V02_village_roofs_hidden.png",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/check_out/V03_move_preview.png",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/check_out/fix1_results.json",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/check_out/raw/fix1_exit.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/check_out/raw/fix1_stderr.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/check_out/raw/fix1_stdout.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/check_out/raw/repro_after_stderr.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/check_out/raw/repro_after_stdout.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/check_out/raw/v3reg_exit.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/check_out/raw/v3reg_stderr.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/check_out/raw/v3reg_stdout.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/check_out/results.json",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/check_out/results_partial.json",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/check_out/state_log.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/check_v3.py",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/diff/check_v3.py.diff",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/diff/index.html.diff",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/make_readme.py",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/probe.py",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/reference/check_v2.py",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/reference/repro_fix1_after.json",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/reference/repro_fix1_before.json",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/reference/repro_v1_skip_result.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/reference/v3_check_out/results.json",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/reference/v3_check_out/results_final_run.json",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/reference/v3_check_out/results_rerun_K1.json",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/reference/v3_check_out/state_log.txt",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/reference/v3_original/check_v3.py",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/repro_fix1.py",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/runmeta.py",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/serve.py",
+      "reason": "Private provenance/status, historical evidence/logs/screenshots, auth/login/real-smoke helper, or ancillary media/document outside public source selection."
+    }
+  ],
+  "metadata_redactions": [
+    {
+      "path": "app/static/characters.json",
+      "change": "Only three source_path metadata values replaced; code and image bytes unchanged.",
+      "original_sha256": "c16b967a332f20e794cefa9b49644b3e70871df30a6f56b4a7d61d4103de41b6"
+    },
+    {
+      "path": "contributions/gemini/unified-chat/source/static/characters.json",
+      "change": "Only three source_path metadata values replaced; code and image bytes unchanged.",
+      "original_sha256": "c16b967a332f20e794cefa9b49644b3e70871df30a6f56b4a7d61d4103de41b6"
+    }
+  ]
+}

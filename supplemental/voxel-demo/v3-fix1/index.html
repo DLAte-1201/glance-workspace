@@ -1,0 +1,2091 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Glance · 작은 마을 — 시뮬레이션 데모 v3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>if(!window.THREE){document.write('<script src="three.min.js"><\/script>');}</script>
+<style>
+:root{
+  --bg:#e7ebe8; --bg2:#dce2de; --panel:#fbfbf9; --ink:#1f262b; --muted:#646e77; --line:#cdd5d0;
+  --moss:#5b7f5a; --moss-soft:#e6eee3; --indigo:#34508a; --indigo-soft:#e4e9f3; --amber:#b9782a;
+  --me:#7a5aa6; --me-soft:#eee9f5; --sim:#a8433a; --warn-soft:#f6ece0; --ok:#3f6e4a;
+  --stage-top:#dfe6e8; --stage-bot:#e9ece4;
+  color-scheme:light; box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#161b1e; --bg2:#1f262a; --panel:#222a2f; --ink:#e6ebed; --muted:#9aa5ac; --line:#34414a;
+    --moss-soft:#213029; --indigo-soft:#202a3c; --me-soft:#2b2437; --warn-soft:#33281c;
+    --stage-top:#141a1e; --stage-bot:#1c2326; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#161b1e; --bg2:#1f262a; --panel:#222a2f; --ink:#e6ebed; --muted:#9aa5ac; --line:#34414a;
+  --moss-soft:#213029; --indigo-soft:#202a3c; --me-soft:#2b2437; --warn-soft:#33281c;
+  --stage-top:#141a1e; --stage-bot:#1c2326; color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{background:var(--bg);color:var(--ink);font-family:"IBM Plex Sans KR","Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif;font-size:14.5px;line-height:1.55;overflow:hidden;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+#app{height:100%;display:flex;flex-direction:column;max-width:1080px;margin:0 auto}
+header{display:flex;align-items:center;gap:10px;padding:10px 14px 6px;flex-wrap:wrap}
+.mark{font-family:"Gowun Batang",serif;font-weight:700;font-size:21px}
+.sim{border:1px solid var(--sim);color:var(--sim);border-radius:4px;padding:0 6px;font-size:12px;font-weight:600;white-space:nowrap}
+.save{font-size:12px;color:var(--muted);white-space:nowrap}
+.save.bad{color:var(--sim);font-weight:600}
+.tabs{display:flex;margin-left:auto;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--panel)}
+.tabs button{border:0;background:transparent;padding:4px 14px;font-weight:500}
+.tabs button[aria-pressed="true"]{background:var(--ink);color:var(--panel)}
+.links{display:flex;gap:2px}
+.links button{border:0;background:transparent;padding:4px 8px;color:var(--muted);font-size:13px;border-radius:6px}
+.links button:hover{background:var(--bg2)}
+.links button.warn{color:var(--sim);font-weight:600}
+.banner{margin:0 14px 6px;border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:7px 10px;font-size:13px;display:none;gap:10px;align-items:flex-start}
+.banner.on{display:flex}
+.banner.bad{border-color:var(--sim);background:var(--warn-soft)}
+.banner p{margin:0;flex:1}
+.banner button{border:0;background:transparent;color:var(--muted);padding:0 4px}
+main{flex:1;min-height:0;position:relative}
+.view{position:absolute;inset:0;display:none;flex-direction:column}
+.view.on{display:flex}
+.cast{display:flex;gap:8px;padding:2px 14px 8px;align-items:stretch}
+.who{flex:1;min-width:0;display:flex;align-items:center;gap:8px;border-radius:10px;padding:3px 10px 3px 4px;border:1px solid var(--line);background:var(--panel)}
+.who.mori{border-left:3px solid var(--moss)} .who.kan{border-left:3px solid var(--indigo)}
+.who svg{width:44px;height:52px;flex:none}
+.who div{min-width:0}
+.who b{font-family:"Gowun Batang",serif;font-size:16px;display:block;line-height:1.25}
+.who .st{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+.mini{flex:none;width:72px;height:72px;padding:0;border:0;background:#8e8a80;border-radius:7px;align-self:center;overflow:hidden}
+.mini canvas{width:100%;height:100%;display:block;image-rendering:pixelated}
+#log{flex:1;overflow-y:auto;padding:6px 14px 10px;display:flex;flex-direction:column;gap:10px;overscroll-behavior:contain}
+.msg{display:flex;gap:8px;align-items:flex-start;max-width:96%}
+.msg .av{width:30px;height:30px;flex:none;border-radius:50%;background:var(--bg2);overflow:hidden}
+.msg .av svg{width:30px;height:30px;display:block}
+.msg .body{min-width:0}
+.msg .nm{font-family:"Gowun Batang",serif;font-size:13px;font-weight:700;margin-bottom:1px}
+.msg.mori .nm{color:var(--moss)} .msg.kan .nm{color:var(--indigo)}
+.msg .tx{background:var(--panel);border:1px solid var(--line);border-radius:3px 12px 12px 12px;padding:6px 11px}
+.msg.me{align-self:flex-end;flex-direction:column;align-items:flex-end;gap:1px}
+.msg.me .tx{background:var(--me-soft);border-color:transparent;border-radius:12px 3px 12px 12px}
+.cst{font-size:11.5px;color:var(--muted)}
+.cst.rej{color:var(--sim)} .cst.run{color:var(--indigo)} .cst.ok{color:var(--ok)} .cst.q{color:var(--amber)}
+.note{align-self:center;font-size:12.5px;color:var(--muted);text-align:center;max-width:92%}
+.note ul{text-align:left;margin:4px 0 0;padding-left:16px}
+.acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.note .acts{justify-content:center}
+.btn{border:1px solid var(--line);background:var(--panel);border-radius:7px;padding:3px 11px;font-size:13px;font-weight:500}
+.btn.pri{background:var(--ink);color:var(--panel);border-color:var(--ink)}
+.btn:disabled{opacity:.4;cursor:default}
+.btn.used{opacity:1;border-color:var(--ink)}
+.card{border:1px solid var(--line);background:var(--panel);border-radius:10px;padding:10px;align-self:stretch;max-width:100%}
+.card h5{margin:0 0 6px;font-family:"Gowun Batang",serif;font-size:15px;font-weight:700}
+.card .sub{color:var(--muted);font-size:12.5px;margin:-4px 0 8px}
+.cmp{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:2px;align-items:flex-start;overscroll-behavior-x:contain}
+.opt{flex:0 0 min(80%,260px);scroll-snap-align:start;border:1px solid var(--line);border-radius:8px;padding:8px;display:flex;flex-direction:column;gap:6px;background:var(--bg)}
+.opt.mori{border-top:3px solid var(--moss)} .opt.kan{border-top:3px solid var(--indigo)} .opt.mix{border-top:3px solid var(--amber)}
+.opt b.t{font-family:"Gowun Batang",serif;font-size:14.5px}
+.opt .feats{font-size:12px;color:var(--muted)}
+svg.plan{width:100%;max-width:150px;aspect-ratio:1/1.05;align-self:center;display:block}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:1px 10px;font-size:12.5px;margin:0}
+.kv dt{color:var(--muted)} .kv dd{margin:0}
+ul.pc{margin:0;padding-left:15px;font-size:12.5px}
+ul.pc li.p::marker{content:"+  ";color:var(--ok);font-weight:600}
+ul.pc li.c::marker{content:"−  ";color:var(--sim);font-weight:600}
+ul.ev{margin:0;padding-left:15px;font-size:12px;color:var(--muted)}
+.draft{display:flex;gap:12px;flex-wrap:wrap}
+.draft .left{flex:0 0 160px;display:flex;flex-direction:column;gap:6px}
+.draft .right{flex:1;min-width:200px;display:flex;flex-direction:column;gap:6px}
+.feat{display:flex;flex-direction:column}
+.feat label{display:flex;align-items:center;gap:8px;font-size:13px;padding:4px 0;border-bottom:1px dashed var(--line);cursor:pointer}
+.feat label i{width:8px;height:8px;border-radius:50%;flex:none}
+.feat label small{color:var(--muted);margin-left:auto;white-space:nowrap}
+.feat input{margin:0;accent-color:var(--ink)}
+.qbar{display:flex;gap:8px;align-items:center;padding:0 14px 2px;font-size:12px;color:var(--muted);flex-wrap:wrap}
+.qbar b{font-weight:600;color:var(--ink)}
+.qbar button{border:0;background:transparent;color:var(--muted);text-decoration:underline;padding:0;font-size:12px}
+.chips{display:flex;gap:6px;overflow-x:auto;padding:2px 14px 6px;scrollbar-width:none}
+.chips button{flex:none;border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:3px 12px;font-size:13px}
+.inputrow{display:flex;gap:6px;padding:4px 14px 12px}
+.inputrow input,.winput input{flex:1;min-width:0;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:10px;padding:9px 12px;font:inherit}
+.inputrow button,.winput button{border:0;border-radius:10px;padding:0 16px;background:var(--ink);color:var(--panel);font-weight:600}
+#vWorld{background:linear-gradient(var(--stage-top),var(--stage-bot))}
+#stage{position:absolute;inset:0;touch-action:none}
+#stage canvas{display:block;width:100%;height:100%}
+.tag{position:absolute;transform:translate(-50%,-100%);font-family:"Gowun Batang",serif;font-weight:700;font-size:11.5px;padding:0 6px;border-radius:4px;color:#fff;pointer-events:none;white-space:nowrap;opacity:.92}
+.hud{position:absolute;left:10px;right:52px;display:flex;gap:6px;pointer-events:none}
+.hud > *{pointer-events:auto}
+.hud.top{top:8px;flex-direction:column;align-items:flex-start}
+.hud.bot{bottom:10px;right:10px;flex-direction:column;align-items:stretch}
+.tools{display:flex;background:var(--panel);border-radius:9px;padding:2px;border:1px solid var(--line);flex-wrap:wrap}
+.tools button{border:0;background:none;border-radius:7px;padding:4px 9px;font-size:13px;font-weight:500}
+.tools button[aria-pressed="true"]{background:var(--ink);color:var(--panel)}
+.nav{position:absolute;right:8px;top:8px;display:flex;flex-direction:column;gap:3px;pointer-events:auto}
+.nav button{border:1px solid var(--line);background:var(--panel);border-radius:8px;width:38px;height:28px;font-size:12px;line-height:1;padding:0}
+.nav button[aria-pressed="true"]{background:var(--ink);color:var(--panel)}
+.nav .gap{height:4px}
+.bpanel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 10px;max-width:min(340px,100%);font-size:12.5px;display:none}
+.bpanel.on{display:block}
+.bpanel h6{margin:0 0 2px;font-family:"Gowun Batang",serif;font-size:14px}
+.bpanel .meta{color:var(--muted)}
+.bpanel .row{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}
+.bpanel .row .btn{padding:2px 8px;font-size:12px}
+.bpanel .why{color:var(--sim);margin-top:4px}
+.palette{display:none;gap:5px;overflow-x:auto;scrollbar-width:none;padding:1px 0}
+.palette.on{display:flex}
+.palette button{flex:none;border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:3px 10px;font-size:13px;display:flex;align-items:center;gap:6px}
+.palette button i{width:11px;height:11px;border-radius:3px;display:inline-block}
+.palette button[aria-pressed="true"]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.palette .sep{flex:none;width:1px;background:var(--line);margin:2px 2px}
+.bar{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:5px 10px;font-size:13px;display:none;align-items:center;gap:8px;flex-wrap:wrap}
+.bar.on{display:flex}
+.bar .grow{flex:1;min-width:120px}
+.bar .why{color:var(--sim)}
+.guide{font-size:12px;color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:3px 10px;display:flex;gap:8px;align-items:center}
+.guide span{flex:1}
+.guide button{border:0;background:transparent;color:var(--muted);padding:0}
+.ticker{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:5px 10px;font-size:13px;cursor:pointer}
+.ticker div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ticker b{font-family:"Gowun Batang",serif;margin-right:5px}
+.winput{display:flex;gap:6px}
+.winput input{padding:6px 10px}
+#flat{position:absolute;inset:56px 52px 150px 12px;display:none;margin:auto;max-width:520px;aspect-ratio:1}
+#flat.on{display:grid;gap:1px;background:#8e8a80;padding:3px;border-radius:8px}
+#flat i{display:flex;align-items:center;justify-content:center;font-style:normal;font-size:min(2.4vw,13px);position:relative;cursor:pointer}
+.sheet{position:fixed;inset:0;background:rgba(10,18,22,.35);display:none;align-items:flex-end;justify-content:center;z-index:20}
+.sheet.on{display:flex}
+.sheet .box{background:var(--panel);width:min(940px,100%);max-height:78%;overflow:auto;border-radius:14px 14px 0 0;padding:14px 16px calc(16px + env(safe-area-inset-bottom,0px))}
+.sheet h3{font-family:"Gowun Batang",serif;margin:2px 0 6px;font-size:18px}
+.sheet h4{margin:12px 0 3px;font-size:13px;color:var(--muted);font-weight:500}
+.sheet ul{margin:0;padding-left:18px}
+.sheet p{margin:0}
+.sheet pre{font-size:11px;white-space:pre-wrap;word-break:break-all;background:var(--bg);padding:8px;border-radius:6px;max-height:44vh;overflow:auto}
+.sheet .x{float:right}
+.confetti{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:15}
+@media (min-width:760px){ .opt{flex:1 1 0} }
+@media (max-width:520px){ .tools button{padding:4px 7px} .who svg{width:38px;height:46px} }
+@media (prefers-reduced-motion: reduce){ *{scroll-behavior:auto!important} }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <span class="mark">Glance</span>
+    <span class="sim">시뮬레이션 데모</span>
+    <span class="save" id="saveSt"></span>
+    <div class="tabs" role="group" aria-label="화면">
+      <button id="tabChat" aria-pressed="true">채팅</button>
+      <button id="tabWorld" aria-pressed="false">월드</button>
+    </div>
+    <div class="links">
+      <button id="btnMem">기억</button>
+      <button id="btnLog">로그</button>
+      <button id="btnReset">초기화</button>
+    </div>
+  </header>
+  <div class="banner" id="banner"><p id="bannerText"></p><button id="bannerX" aria-label="닫기">닫기</button></div>
+  <main>
+    <section class="view on" id="vChat">
+      <div class="cast">
+        <div class="who mori"><svg id="pMori" viewBox="0 0 120 140" aria-hidden="true"></svg><div><b>모리</b><span class="st" id="stMori"></span></div></div>
+        <div class="who kan"><svg id="pKan" viewBox="0 0 120 140" aria-hidden="true"></svg><div><b>칸</b><span class="st" id="stKan"></span></div></div>
+        <button class="mini" id="mini" aria-label="월드 보기"><canvas id="miniC" width="64" height="64"></canvas></button>
+      </div>
+      <div id="log" aria-live="polite"></div>
+      <div class="qbar" id="qbar"></div>
+      <div class="chips" id="chips"></div>
+      <div class="inputrow">
+        <input id="inp" placeholder="주민에게 말하기" autocomplete="off" enterkeyhint="send">
+        <button id="send">보내기</button>
+      </div>
+    </section>
+    <section class="view" id="vWorld">
+      <div id="stage"></div>
+      <div id="flat"></div>
+      <div class="hud top">
+        <div class="tools" id="tools">
+          <button data-t="view" aria-pressed="true">선택</button>
+          <button data-t="build" aria-pressed="false">짓기</button>
+          <button data-t="modify" aria-pressed="false">고치기</button>
+          <button data-t="remove" aria-pressed="false">철거</button>
+          <button data-t="keep" aria-pressed="false">보존</button>
+        </div>
+        <div class="bpanel" id="bpanel"></div>
+      </div>
+      <div class="nav" id="nav">
+        <button data-c="yawL" title="왼쪽으로 돌리기 (Q)" aria-label="왼쪽으로 돌리기">⟲</button>
+        <button data-c="yawR" title="오른쪽으로 돌리기 (E)" aria-label="오른쪽으로 돌리기">⟳</button>
+        <button data-c="pitchU" title="더 내려다보기" aria-label="더 내려다보기">▲</button>
+        <button data-c="pitchD" title="더 눕혀 보기" aria-label="더 눕혀 보기">▼</button>
+        <button data-c="zIn" title="가까이" aria-label="가까이">＋</button>
+        <button data-c="zOut" title="멀리" aria-label="멀리">－</button>
+        <div class="gap"></div>
+        <button data-c="top" title="탑뷰 / 조감도 (T)" aria-label="탑뷰 전환" id="btnTop">탑</button>
+        <button data-c="roof" title="지붕: 보임 · 반투명 · 숨김 (R)" aria-label="지붕 보기 전환" id="btnRoof">지붕</button>
+        <button data-c="fit" title="전체 맞춤 (0)" aria-label="전체 맞춤">맞춤</button>
+        <button data-c="focus" title="선택 건물 집중 (F)" aria-label="선택 건물 집중">집중</button>
+        <button data-c="home" title="기본 시점 (H)" aria-label="기본 시점">기본</button>
+      </div>
+      <div class="hud bot">
+        <div class="palette" id="palette"></div>
+        <div class="bar" id="specbar"></div>
+        <div class="bar" id="toast"></div>
+        <div class="bar" id="pbar"></div>
+        <div class="guide" id="guide"><span id="guideText"></span><button id="guideX" aria-label="안내 닫기">닫기</button></div>
+        <div class="ticker" id="ticker"></div>
+        <div class="winput"><input id="winp" placeholder="주민에게 말하기" autocomplete="off" enterkeyhint="send"><button id="wsend">보내기</button></div>
+      </div>
+    </section>
+  </main>
+</div>
+<div class="sheet" id="sheet"><div class="box" id="sheetBox"></div></div>
+
+<script>
+(function(){
+'use strict';
+/* ================= 0. 설정 ================= */
+const $=id=>document.getElementById(id);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const QS=new URLSearchParams(location.search);
+const SPEED=clamp(parseFloat(QS.get('speed'))||1,.25,20);
+const TICK_MS=300/SPEED;
+const NOSAVE=QS.get('nosave')==='1';
+/* 월드 크기는 설정값: 기본 16, URL ?size=12~24. 저장본이 있으면 저장본의 크기를 따른다 */
+const CFG={N:clamp(parseInt(QS.get('size'))||16,12,24)};
+let N=CFG.N;
+const AUTO_IDLE=45,AUTO_MAX=8,WAIT_FAIL=40,CHAT_KEEP=150,UNDO_MAX=20,QMAX=6,RUN_PER_TICK=3,CMD_KEEP=300,LOG_KEEP=2000,LOG_SAVE=600,SAVE_MIN_MS=1500;
+const SAVE_KEY='glance-sim-v3',BROKEN_KEY='glance-sim-v3:broken',SCHEMA='glance-sim/3';
+const V2_KEY='glance-sim-v2',V2_SCHEMA='glance-sim/2';
+const idx=(x,z)=>z*N+x, inb=(x,z)=>x>=0&&z>=0&&x<N&&z<N, MID=()=>(N-1)/2, MX=x=>N-1-x;
+const DIR4=[[1,0],[-1,0],[0,1],[0,-1]],DIR8=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]];
+const IDS=['mori','kan'],OTHER={mori:'kan',kan:'mori'};
+const PEOPLE={mori:{name:'모리',color:'#5b7f5a'},kan:{name:'칸',color:'#34508a'},me:{name:'나',color:'#7a5aa6'}};
+const T={
+  grass:{L:'g',name:'풀',vars:['풀']},
+  path:{L:'g',name:'길',vars:['자갈길','판석길']},
+  water:{L:'g',name:'연못',vars:['연못']},
+  flower:{L:'o',name:'꽃',vars:['수국','들꽃','흰 꽃'],nature:1},
+  tree:{L:'o',name:'나무',vars:['느티나무','소나무'],nature:1,block:1},
+  bush:{L:'o',name:'덤불',vars:['회양목','억새'],nature:1,block:1},
+  reed:{L:'o',name:'갈대',vars:['갈대'],nature:1,block:1},
+  bench:{L:'o',name:'벤치',vars:['오크','월넛','먹색'],block:1,seat:1},
+  stump:{L:'o',name:'그루터기',vars:['그루터기'],nature:1,block:1,seat:1},
+  lamp:{L:'o',name:'등',vars:['석등','장대등'],block:1}
+};
+const GROUNDS=new Set(['grass','path','water']);
+const C2={grass:'#b3c4a3',path:['#d9ccb0','#b9b8b0'],water:'#6f9aa6',flower:['#8f8fd0','#e2c25a','#f3f1ea'],
+  tree:['#5e8a4e','#3f6b48'],bush:['#5f7f4d','#c4b48a'],reed:['#a99f6e'],bench:['#a77b4f','#6e4c34','#45474c'],stump:['#7d5a3a'],lamp:['#c9c4b6','#4a4a4a']};
+const col=(t,v)=>{const a=C2[t];return Array.isArray(a)?(a[v]||a[0]):a;};
+/* 건물 유형: 제한된 선택지 안에서만 조정. 높이는 벽·기둥 높이이며 층(다층)이 아니다 */
+const ROOFF={hip:'우진각',pyramid:'모임',gable:'맞배',shed:'외쪽'};
+const MATS={roof:{slate:['먹색 기와','#4b5058'],copper:['구리 녹','#5f8d80'],redtile:['적갈 기와','#8a4f3c'],thatch:['이엉','#a88d55'],tin:['함석','#7f8a92']},
+  wall:{plaster:['회벽','#e4dfd3'],timber:['목조','#9b7451'],stone:['돌벽','#a6a297'],plank:['판자','#86684b'],brick:['벽돌','#9c5a44']},
+  floor:{oak:['밝은 마루','#c49a6c'],walnut:['짙은 마루','#8f6a48']}};
+const BT={
+  pavilion:{name:'정자',W:[1,2,3],D:[1,2,3],H:[1,2],hName:{1:'낮은 기둥',2:'높은 기둥'},hVal:{1:1.25,2:1.6},roofs:['hip','pyramid','gable'],roofMat:['slate','copper','redtile','thatch'],wallMat:null,floorMat:['oak','walnut'],door:0,closed:false,use:'트인 쉼터 · 안에 자리'},
+  house:{name:'작은 집',W:[2,3],D:[2,3],H:[1,2],hName:{1:'낮은 벽',2:'높은 천장'},hVal:{1:.95,2:1.25},roofs:['gable','hip'],roofMat:['slate','thatch','redtile'],wallMat:['plaster','timber','stone'],floorMat:['oak'],door:1,closed:true,use:'벽·문·창 · 침상과 탁자'},
+  workshop:{name:'작업실',W:[3,4],D:[3,4],H:[2,3],hName:{2:'보통 층고',3:'높은 층고'},hVal:{2:1.4,3:1.75},roofs:['shed','gable'],roofMat:['tin','slate','redtile'],wallMat:['plank','brick'],floorMat:['walnut'],door:2,closed:true,use:'넓은 문 · 작업대와 목재'}
+};
+const SIDES=['S','E','N','W'],SIDE_KO={S:'앞(입구 쪽)',N:'뒤',E:'오른쪽',W:'왼쪽'};
+function josa(w,p){const ch=w.charCodeAt(w.length-1);const [a,b]=p.split('/');if(ch<0xAC00||ch>0xD7A3)return b;const j=(ch-0xAC00)%28;if(p==='으로/로')return(j===0||j===8)?b:a;return j?a:b;}
+const nm=t=>T[t].name, jo=(w,p)=>w+josa(w,p), vn=(t,v)=>T[t].vars[v]||T[t].vars[0];
+const STATUS_KO={done:'완료',skipped:'건너뜀',failed:'실패',cancelled:'취소'};
+const PJ_KO={building:'공사 중',complete:'완성',partial:'부분 완성',cancelled:'공사 중지'};
+const CMD_KO={accepted:'접수',queued:'대기',running:'실행 중',done:'완료',cancelled:'취소',rejected:'거절'};
+
+/* ================= 1. 상태 ================= */
+let S;let BM=new Map();
+function rebuildBM(){BM=new Map(S.buildings.map(b=>[b.id,b]));}
+function newCell(){return{g:'grass',o:null,vg:0,vo:0,by:{},ut:null,keep:false,keepT:null,b:null};}
+function mkRes(x,z){return{x,z,px:x,pz:z,q:[],wait:0,anim:'idle',animT:0,face:0,blocked:0,yieldTo:null,bad:0};}
+function fresh(){
+  const grid=Array.from({length:N*N},newCell);
+  [[N-1,N-1,'tree',1],[0,N-1,'tree',0],[N-3,N-2,'tree',0],[0,0,'bush',0],[N-1,0,'bush',1],[2,N-2,'bush',0]].forEach(([x,z,t,v])=>{const c=grid[z*N+x];c.o=t;c.vo=v;c.by.o='처음부터';});
+  return{v:3,cfg:{N},rng:20261027,tick:0,ver:0,grid,buildings:[],bseq:0,removedB:[],
+    res:{mori:mkRes(Math.floor(N/2)-3,1),kan:mkRes(Math.floor(N/2)+2,1)},
+    chat:[],log:[],script:[],scriptWait:0,compare:null,draft:null,suggestion:null,sugPending:false,planning:null,
+    cmds:[],cmdQ:[],cmdSeq:0,
+    mem:{requests:[],agreements:[],bans:{},prefs:{},bprefs:{},history:[],declined:[],suggested:{},autonomy:0,autoOn:true},
+    projects:[],pid:0,idle:0,msgId:0,seq:0,undo:[],stats:{overlaps:0,illegal:0,dupEvents:0,merged:0,qfull:0,rescues:0,keyRepeat:0,imeIgnored:0,orphans:0,prunedCmds:0},lastReact:-99,keepTold:false,
+    view:null,sel:null,roofMode:'show',migrated:null};
+}
+function rnd(){S.rng=(S.rng+0x6D2B79F5)>>>0;let t=S.rng;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296;}
+const cell=(x,z)=>S.grid[idx(x,z)];
+const typeAt=(c,L)=>L==='g'?c.g:c.o;
+const isProtected=c=>c.keep||c.ut!=null;
+function blocks(c){if(c.g==='water'||(c.o&&T[c.o].block))return true;if(c.b){const b=BM.get(c.b);if(b&&BT[b.type].closed&&b.stage>=1)return true;}return false;}
+const walkable=(x,z)=>inb(x,z)&&!blocks(cell(x,z));
+function natureN(x,z){let n=0;for(const[a,b]of DIR4){if(!inb(x+a,z+b))continue;const c=cell(x+a,z+b);if(c.g==='water'||(c.o&&T[c.o].nature))n++;}return n;}
+function nearWater(x,z){return DIR4.some(([a,b])=>inb(x+a,z+b)&&cell(x+a,z+b).g==='water');}
+function nearTree(x,z){return DIR8.some(([a,b])=>inb(x+a,z+b)&&cell(x+a,z+b).o==='tree');}
+function bCells(b){const o=[];for(let z=b.z;z<b.z+b.d;z++)for(let x=b.x;x<b.x+b.w;x++)o.push([x,z]);return o;}
+function doorCells(b){const t=BT[b.type];if(!t.door||!b.door)return[];const o=[];
+  for(let k=0;k<t.door;k++){const a=b.door.at+k;const s=b.door.side;
+    if(s==='S')o.push([b.x+a,b.z-1]);else if(s==='N')o.push([b.x+a,b.z+b.d]);else if(s==='W')o.push([b.x-1,b.z+a]);else o.push([b.x+b.w,b.z+a]);}
+  return o;}
+const sideLen=(w,d,s)=>(s==='S'||s==='N')?w:d;
+function doorSet(){const s=new Set();S.buildings.forEach(b=>doorCells(b).forEach(([x,z])=>{if(inb(x,z))s.add(idx(x,z));}));return s;}
+function reserved(){const s=new Set();IDS.forEach(id=>S.res[id].q.forEach(o=>{if(o.x!=null&&o.op!=='bstage'&&o.op!=='bmod'&&o.op!=='bremove')s.add(idx(o.x,o.z));}));return s;}
+function freeCell(x,z,res,doors){if(!inb(x,z))return false;const c=cell(x,z);return c.g==='grass'&&!c.o&&!c.b&&!isProtected(c)&&!(res&&res.has(idx(x,z)))&&!(doors&&doors.has(idx(x,z)));}
+function cellsOf(type){const L=T[type].L,out=[];S.grid.forEach((c,i)=>{if(typeAt(c,L)===type)out.push([i%N,(i/N)|0]);});return out;}
+const bump=()=>{S.ver++;};
+
+let chatDirty=true;
+function log(who,ev,d){S.log.push({t:S.tick,who,ev,d:d==null?null:d});if(S.log.length>LOG_KEEP)S.log.splice(0,S.log.length-LOG_KEEP);}
+function post(who,text,extra){const m=Object.assign({id:++S.msgId,t:S.tick,who,text,rv:0},extra||{});S.chat.push(m);trimChat();log(who,'say',text);chatDirty=true;return m;}
+/* 채팅 상한: 오래된 메시지부터 정리하되 활성 명령의 말풍선, 열려 있는 비교·초안 카드, 답을 기다리는 제안은 남긴다(fix1) */
+function trimChat(){if(S.chat.length<=CHAT_KEEP)return;const prot=typeof cmdProtected==='function'&&S.cmds?cmdProtected():new Set();let over=S.chat.length-CHAT_KEEP;
+  S.chat=S.chat.filter(m=>{if(over<=0)return true;const keep=(m.cmd&&prot.has(m.cmd))||(S.compare&&m.cmpId===S.compare.id)||(S.draft&&m.did===S.draft.id)||(S.suggestion&&m.sug===S.suggestion.id);if(keep)return true;over--;return false;});}
+const note=(t,e)=>post('note',t,e);
+function touchMsg(m){if(m){m.rv=(m.rv||0)+1;chatDirty=true;}}
+function msgById(id){for(let i=S.chat.length-1;i>=0;i--)if(S.chat[i].id===id)return S.chat[i];return null;}
+function say(who,text,extra,wait){S.script.push({who,text,extra:extra||null,wait:wait==null?2:wait});}
+function call(name,arg,wait){S.script.push({call:name,arg,wait:wait==null?1:wait});}
+function remember(text,extra){S.mem.history.push(Object.assign({t:S.tick,text},extra||{}));if(S.mem.history.length>120)S.mem.history.shift();}
+
+/* ================= 2. 명령 파이프라인 =================
+ 상태: accepted(접수) → queued(대기) → running(실행) → done(완료) | cancelled(취소) | rejected(거절)
+ · 별개의 제출(클릭·Enter·칩 누름)은 문장이 같고 간격이 짧아도 각각 고유 ID로 접수한다(fix1)
+ · 막는 것: 같은 이벤트 객체의 이중 전달(WeakSet으로 식별), 키를 누르고 있어 생기는 자동 반복(keydown.repeat), IME 조합 중 Enter(isComposing·keyCode 229)
+ · 대기 한도 QMAX, 넘치면 사유와 함께 거절. 중지·대기 비우기는 대기열을 거치지 않고 즉시 처리
+ · 상대 변경(색·지붕·벽·높이 등 '다음 것으로')은 작업이 실제로 실행되는 시점의 상태에서 한 단계씩 계산한다(fix1)
+ · 명령 이력은 CMD_KEEP을 넘으면 오래된 '종결' 명령부터 정리. 접수·대기·실행 중이거나 대기열·검토 중 계획·대기 중 공사·진행 중 공사가 참조하는 명령은 지우지 않는다
+   (그래서 활성 명령이 많으면 이력이 잠시 CMD_KEEP을 넘을 수 있음). 정리된 종결 명령의 최종 상태는 해당 말풍선에 남긴다(fix1)
+ · 만들기 요청은 검토 중인 계획이 끝날 때까지 대기, 다른 요청은 그 뒤에 들어와도 먼저 처리될 수 있음 */
+const seenEvents=new WeakSet();
+function classify(t){
+  if(/(공사|작업|짓기).*(멈|중지|그만)|^(멈춰|중지|그만 지어)/.test(t))return'stop';
+  if(/대기.*(비워|취소)|요청.*(취소|비워)/.test(t))return'cancel';
+  if(/조율|섞어|섞자|둘 ?다|모리 안|칸 안|이대로|확정|접자|빼고|넣어줘|켜줘|꺼줘/.test(t))return'review';
+  if(/^(응|좋아|그래|해줘|오케이|ㅇㅇ|아니|괜찮|됐어|싫어)/.test(t))return'reply';
+  if(/하나 더|한 번 더|또 만들/.test(t))return'plan';
+  if(/(쉬|휴식|쉼터|앉을|정자|집|작업실|공방|꽃밭|정원|화단|조경|꽃)/.test(t)&&/(만들|지어|짓|세워|심어|꾸며|놔|놓아)/.test(t))return'plan';
+  return'edit';
+}
+function cmdById(id){for(let i=S.cmds.length-1;i>=0;i--)if(S.cmds[i].id===id)return S.cmds[i];return null;}
+function setStatus(c,st,reason,extra){if(!c)return;c.status=st;if(reason!==undefined)c.reason=reason;if(extra)Object.assign(c,extra);c.tEnd=(st==='done'||st==='cancelled'||st==='rejected')?S.tick:null;
+  log('cmd',st,{id:c.id,reason:c.reason||null,pid:c.pid||null});touchMsg(msgById(c.mid));bump();}
+function isDupEvent(evt,text,src){if(!evt)return false;if(seenEvents.has(evt)){S.stats.dupEvents++;log('ui','dup-event',{text,src,why:'같은 이벤트 객체가 다시 전달됨'});return true;}seenEvents.add(evt);return false;}
+function cmdProtected(){const s=new Set(S.cmdQ);S.cmds.forEach(c=>{if(c.status==='accepted'||c.status==='queued'||c.status==='running')s.add(c.id);});
+  S.projects.forEach(p=>{if(p.status==='building'&&p.cmd)s.add(p.cmd);});
+  if(S.compare&&S.compare.cmd)s.add(S.compare.cmd);if(S.draft&&S.draft.cmd)s.add(S.draft.cmd);if(S.planning)s.add(S.planning);
+  S.script.forEach(x=>{if(x.call&&x.arg&&x.arg.cmd)s.add(x.arg.cmd);});return s;}
+function pruneCmds(){if(S.cmds.length<=CMD_KEEP)return;const prot=cmdProtected();let over=S.cmds.length-CMD_KEEP;const keep=[];
+  for(const c of S.cmds){if(over>0&&!prot.has(c.id)){over--;const m=msgById(c.mid);if(m){m.cmdFinal={id:c.id,status:c.status,reason:c.reason};touchMsg(m);}S.stats.prunedCmds=(S.stats.prunedCmds||0)+1;continue;}keep.push(c);}
+  S.cmds=keep;if(S.cmds.length>CMD_KEEP)log('sys','cmd-keep-over',{n:S.cmds.length,keep:CMD_KEEP,protected:prot.size});}
+function submit(raw,src,evt){
+  const text=String(raw||'').trim();if(!text)return null;
+  if(isDupEvent(evt,text,src))return null;
+  const c={id:'C'+(++S.cmdSeq),text,src:src||'api',t:S.tick,status:'accepted',kind:classify(text),reason:null,pid:null};
+  S.cmds.push(c);pruneCmds();
+  const m=post('me',text,{cmd:c.id});c.mid=m.id;log('cmd','accepted',{id:c.id,text,kind:c.kind,src:c.src});
+  if(c.kind==='stop'||c.kind==='cancel'){runCmd(c);return c;}
+  if(S.cmdQ.length>=QMAX){S.stats.qfull++;setStatus(c,'rejected',`대기열이 가득 참(${QMAX}개) — 잠시 뒤 다시 보내주세요`);return c;}
+  S.cmdQ.push(c.id);setStatus(c,'queued',null);
+  return c;
+}
+function laneBusy(){return!!(S.compare||S.draft||S.planning);}
+function runnable(c){if(c.kind==='plan')return!laneBusy();return true;}
+function pumpCmds(){
+  let n=0;
+  for(let i=0;i<S.cmdQ.length&&n<RUN_PER_TICK;){
+    const id=S.cmdQ[i],c=cmdById(id);
+    if(!c){S.cmdQ.splice(i,1);S.stats.orphans=(S.stats.orphans||0)+1;log('sys','cmd-orphan',{id,why:'대기열 ID의 정본 명령이 없음 — 실행하지 않고 대기열에서 제외'});note(`대기열 불일치: ${id}의 명령 기록을 찾지 못해 실행하지 않았어요`);continue;}
+    if(c.status!=='queued'){S.cmdQ.splice(i,1);log('sys','cmd-queue-stale',{id,status:c.status});continue;}
+    if(!runnable(c)){if(c.reason!=='검토 중인 계획이 끝나면 처리'){c.reason='검토 중인 계획이 끝나면 처리';touchMsg(msgById(c.mid));}i++;continue;}
+    S.cmdQ.splice(i,1);n++;runCmd(c);
+  }
+}
+function runCmd(c){
+  setStatus(c,'running',null);
+  let r;try{r=exec(c)||{st:'done'};}catch(e){r={st:'rejected',why:'처리 중 오류: '+e.message};log('sys','cmd-error',{id:c.id,err:String(e&&e.stack||e)});}
+  if(r.st==='running'){c.reason=r.why||null;if(r.pid)c.pid=r.pid;touchMsg(msgById(c.mid));bump();}
+  else setStatus(c,r.st,r.why||null,r.pid?{pid:r.pid}:null);
+}
+function clearQueue(by){const ids=S.cmdQ.slice();S.cmdQ=[];ids.forEach(id=>{const x=cmdById(id);if(x&&x.status==='queued')setStatus(x,'cancelled','대기 비우기');});return ids.length;}
+function cmdOfProject(pid){return S.cmds.filter(c=>c.pid===pid&&c.status==='running');}
+
+/* ================= 3. 저장·복원·이전 ================= */
+function fnv(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return(h>>>0).toString(16);}
+let saveState={load:'new',last:null,err:null,why:null,at:null,bytes:0,count:0,ms:0},saveDirty=false,lastSaveAt=0;
+function serialize(){return JSON.stringify(Object.assign({},S,{log:S.log.slice(-LOG_SAVE)}));}
+function save(){
+  if(NOSAVE){saveState.err='저장 꺼짐';renderSave();return;}
+  const a=performance.now();
+  try{const body=serialize();localStorage.setItem(SAVE_KEY,JSON.stringify({schema:SCHEMA,savedAt:new Date().toISOString(),hash:fnv(body),body}));
+    saveState.last=new Date();saveState.err=null;saveState.bytes=body.length;saveState.count++;}
+  catch(e){saveState.err=(e&&e.name==='QuotaExceededError')?'저장 공간 부족':'저장 불가';}
+  saveState.ms+=performance.now()-a;saveDirty=false;lastSaveAt=performance.now();renderSave();
+}
+function saveSoon(){saveDirty=true;}
+function validateV3(st){
+  if(!st||st.v!==3||!st.cfg||!Number.isInteger(st.cfg.N)||st.cfg.N<8||st.cfg.N>32)return'버전·크기 정보 오류';
+  const n=st.cfg.N;if(!Array.isArray(st.grid)||st.grid.length!==n*n)return'격자 크기 불일치';
+  if(!Array.isArray(st.buildings))return'건물 목록 오류';
+  const ids=new Set();
+  for(const b of st.buildings){if(!b||!BT[b.type]||ids.has(b.id))return'건물 정보 오류';ids.add(b.id);const t=BT[b.type];
+    if(!t.W.includes(b.w)||!t.D.includes(b.d)||!t.H.includes(b.h)||!t.roofs.includes(b.roof))return'건물 규격 오류';
+    if(b.x<0||b.z<0||b.x+b.w>n||b.z+b.d>n)return'건물 위치 범위 오류';if(!Number.isInteger(b.stage)||b.stage<0||b.stage>4)return'건물 단계 오류';}
+  for(const c of st.grid){
+    if(!c||!GROUNDS.has(c.g))return'알 수 없는 바닥';
+    if(c.o!==null&&!(T[c.o]&&T[c.o].L==='o'))return'알 수 없는 물건';
+    if(typeof c.keep!=='boolean')return'보존 값 오류';
+    if(!Number.isInteger(c.vg)||c.vg<0||c.vg>=T[c.g].vars.length)return'모양 값 범위 오류';
+    if(c.o&&(!Number.isInteger(c.vo)||c.vo<0||c.vo>=T[c.o].vars.length))return'모양 값 범위 오류';
+    if(c.b!==null&&!ids.has(c.b))return'칸·건물 연결 오류';
+    if(!c.by||typeof c.by!=='object')return'작성자 정보 오류';
+  }
+  for(const id of IDS){const r=st.res&&st.res[id];if(!r||r.x<0||r.z<0||r.x>=n||r.z>=n||!Array.isArray(r.q))return'주민 상태 오류';}
+  if(!st.mem||!Array.isArray(st.mem.agreements)||typeof st.mem.bans!=='object')return'기억 형식 오류';
+  if(!Array.isArray(st.chat)||!Array.isArray(st.projects)||!Array.isArray(st.undo)||!Array.isArray(st.script)||!Array.isArray(st.cmds)||!Array.isArray(st.cmdQ))return'기록 형식 오류';
+  return'';
+}
+function readWrapped(raw,schema){
+  let w;try{w=JSON.parse(raw);}catch(e){return{err:'JSON 형식 아님'};}
+  if(!w||typeof w!=='object')return{err:'형식 아님'};
+  if(w.schema!==schema)return{unsupported:String(w.schema||'표시 없음')};
+  if(typeof w.body!=='string'||fnv(w.body)!==w.hash)return{err:'무결성 해시 불일치'};
+  try{return{st:JSON.parse(w.body),at:w.savedAt};}catch(e){return{err:'본문 JSON 오류'};}
+}
+/* v2 → v3 이전: 8×8 내용을 16×16 앞쪽 가운데로 옮기고 지붕 칸은 정자 건물로 바꾼다. v2 원본 키는 지우거나 덮지 않는다 */
+function migrateV2(st2){
+  const rep={moved:[],fixed:[],dropped:[]};
+  if(!st2||!Array.isArray(st2.grid)||st2.grid.length!==64)return{err:'v2 격자 크기 불일치'};
+  for(const c of st2.grid){if(!c||!['grass','path','floor','water'].includes(c.g))return{err:'v2 알 수 없는 바닥'};if(c.o!==null&&!T[c.o])return{err:'v2 알 수 없는 물건'};}
+  N=Math.max(16,N);const off=Math.floor((N-8)/2);const st=fresh();st.chat=[];
+  const roofCells=[],floorNoRoof=[];let fixed=0;
+  st2.grid.forEach((c,i)=>{const x=(i%8)+off,z=(i/8)|0,d=st.grid[z*N+x];
+    d.g=c.g==='floor'?'grass':c.g;d.vg=d.g==='path'?Math.min(c.vg|0,1):0;
+    if(c.g==='floor'&&!c.r)floorNoRoof.push([x,z]);
+    d.o=c.o;if(d.o){let v=c.vo|0;if(v<0||v>=T[d.o].vars.length){v=0;fixed++;}d.vo=v;}
+    d.by=Object.assign({},c.by||{});d.ut=c.ut==null?null:c.ut;d.keep=!!c.keep;d.keepT=c.keep?0:null;
+    if(c.r)roofCells.push({x,z,vr:c.vr|0,vg:c.vg|0,by:(c.by&&c.by.r)||'kan'});});
+  floorNoRoof.forEach(([x,z])=>{const d=st.grid[z*N+x];d.g='path';d.vg=1;});
+  if(floorNoRoof.length)rep.fixed.push(`지붕 없는 마루 ${floorNoRoof.length}칸 → 판석길`);
+  if(fixed)rep.fixed.push(`범위 밖 모양값 ${fixed}개 → 기본값`);
+  const key=(x,z)=>x+','+z,rs=new Map(roofCells.map(r=>[key(r.x,r.z),r])),seen=new Set();
+  const rmat=['slate','copper','redtile'];
+  roofCells.forEach(r=>{if(seen.has(key(r.x,r.z)))return;const comp=[],q=[r];seen.add(key(r.x,r.z));
+    for(let h=0;h<q.length;h++){const c=q[h];comp.push(c);DIR4.forEach(([a,b])=>{const k=key(c.x+a,c.z+b);if(rs.has(k)&&!seen.has(k)){seen.add(k);q.push(rs.get(k));}});}
+    const xs=comp.map(c=>c.x),zs=comp.map(c=>c.z),x0=Math.min(...xs),x1=Math.max(...xs),z0=Math.min(...zs),z1=Math.max(...zs);
+    const rect=comp.length===(x1-x0+1)*(z1-z0+1)&&x1-x0<3&&z1-z0<3;
+    const parts=rect?[{x:x0,z:z0,w:x1-x0+1,d:z1-z0+1,c:comp[0]}]:comp.map(c=>({x:c.x,z:c.z,w:1,d:1,c}));
+    parts.forEach(p=>{const id='B'+(++st.bseq);const b={id,name:'',type:'pavilion',x:p.x,z:p.z,w:p.w,d:p.d,h:1,roof:'hip',mats:{roof:rmat[p.c.vr]||'slate',floor:p.c.vg?'walnut':'oak'},door:null,
+      owner:p.c.by==='mori'?'mori':p.c.by==='me'?'me':'kan',stage:4,status:'built',keep:false,keepT:null,ut:null,created:0,rv:0,pid:null};
+      st.buildings.push(b);for(let z=p.z;z<p.z+p.d;z++)for(let x=p.x;x<p.x+p.w;x++)st.grid[z*N+x].b=id;});
+    rep.moved.push(`지붕 ${comp.length}칸 → 정자 ${parts.length}채`);});
+  st.buildings.forEach((b,i)=>b.name=nameFor(b,st.buildings.slice(0,i)));
+  const m2=st2.mem||{};
+  st.mem.requests=(m2.requests||[]).slice(-20);st.mem.agreements=(m2.agreements||[]).map(a=>({t:a.t,kind:a.kind,base:a.base,summary:a.summary,features:a.features||[],pid:null}));
+  Object.keys(m2.bans||{}).forEach(t=>{if(T[t])st.mem.bans[t]=m2.bans[t];else rep.dropped.push(`빼기 '${t}'(v3에 없는 종류)`);});
+  Object.entries(m2.prefs||{}).forEach(([t,v])=>{if(t==='roof')st.mem.bprefs.pavilion=Object.assign(st.mem.bprefs.pavilion||{},{roofMat:rmat[v]||'slate'});else if(T[t]&&v<T[t].vars.length)st.mem.prefs[t]=v;});
+  st.mem.history=(m2.history||[]).slice(-60);st.mem.autonomy=m2.autonomy|0;st.mem.autoOn=m2.autoOn!==false;
+  if((m2.declined||[]).length)rep.dropped.push(`거절한 제안 ${m2.declined.length}개(좌표가 바뀌어 다시 나올 수 있음)`);
+  st.projects=(st2.projects||[]).map(p=>{const q=JSON.parse(JSON.stringify(p));if(q.status==='building'){const left=q.total-(q.c.done+q.c.skipped+q.c.failed+q.c.cancelled);q.c.cancelled+=left;q.status='cancelled';q.issues=(q.issues||[]).concat([`이전 형식의 진행 중 작업 ${left}건은 옮기지 않음`]);}return q;});
+  st.pid=st2.pid|0;
+  const inflight=IDS.reduce((a,id)=>a+((st2.res&&st2.res[id]&&st2.res[id].q)||[]).length,0);
+  if(inflight)rep.dropped.push(`진행 중 작업 ${inflight}건`);
+  if(st2.compare||st2.draft)rep.dropped.push('검토 중이던 계획');if((st2.undo||[]).length)rep.dropped.push(`되돌리기 기록 ${st2.undo.length}개`);
+  IDS.forEach(id=>{const r=st2.res&&st2.res[id];if(r){st.res[id].x=r.x+off;st.res[id].z=r.z;st.res[id].px=r.x+off;st.res[id].pz=r.z;}});
+  st.chat=(st2.chat||[]).filter(m=>!m.cmpId&&!m.did).slice(-60).map(m=>({id:m.id,t:m.t,who:m.who,text:m.text,rv:0}));st.msgId=st2.msgId|0;
+  st.tick=st2.tick|0;st.rng=st2.rng>>>0;st.migrated={from:'v2',at:new Date().toISOString(),rep};
+  return{st,rep};
+}
+function loadSave(){
+  if(NOSAVE)return{status:'off'};
+  let raw3,raw2;try{raw3=localStorage.getItem(SAVE_KEY);raw2=localStorage.getItem(V2_KEY);}catch(e){return{status:'unavailable'};}
+  if(raw3!=null){
+    const r=readWrapped(raw3,SCHEMA);
+    if(r.unsupported){return{status:'unsupported',why:`v3 자리에 알 수 없는 형식(${r.unsupported})`};}
+    if(r.err){try{localStorage.setItem(BROKEN_KEY,raw3);}catch(_){}return{status:'corrupt',why:r.err};}
+    const why=validateV3(r.st);if(why){try{localStorage.setItem(BROKEN_KEY,raw3);}catch(_){}return{status:'corrupt',why};}
+    return{status:'restored',state:r.st,at:r.at};
+  }
+  if(raw2!=null){
+    const r=readWrapped(raw2,V2_SCHEMA);
+    if(r.unsupported)return{status:'unsupported',why:`구버전 저장 형식(${r.unsupported})은 가져올 수 없어요`};
+    if(r.err)return{status:'v2corrupt',why:r.err};
+    const m=migrateV2(r.st);if(m.err)return{status:'v2corrupt',why:m.err};
+    return{status:'migrated',state:m.st,rep:m.rep,at:r.at};
+  }
+  return{status:'new'};
+}
+
+/* ================= 4. 주민 두뇌 인터페이스 =================
+ propose(id, request, view) → {text, notes[], features[]}   (값 또는 Promise — Promise면 계획 칸을 잠그고 끝날 때까지 다른 만들기 요청은 대기)
+ comment(id, event, view)   → string | null
+ suggest(id, view)          → {text, ops[], sig} | null
+ feature = {id, owner, group, label, ops[], movable, pair}; 건물 ops는 {op:'bnew', x,z, spec}
+ 반환된 ops는 resolve()(충돌·출입구·경로 검사)와 실행 직전 checkOp()를 똑같이 거친다. 지금 연결된 구현은 SimBrain(규칙 기반)뿐. */
+function worldView(){return{size:N,grid:S.grid.map(c=>({g:c.g,o:c.o,b:c.b,keep:c.keep,user:c.ut!=null})),buildings:S.buildings.map(b=>({id:b.id,name:b.name,type:b.type,x:b.x,z:b.z,w:b.w,d:b.d,door:b.door})),
+  memory:{agreements:S.mem.agreements.map(a=>a.summary),bans:Object.keys(S.mem.bans),prefs:S.mem.prefs,bprefs:S.mem.bprefs,declined:S.mem.declined},
+  residents:IDS.map(id=>({id,x:S.res[id].x,z:S.res[id].z,busy:S.res[id].q.length}))};}
+const P=(x,z,layer,type,v)=>({op:'place',x,z,layer,type,v:v||0});
+const F=(owner,id,group,label,ops,o)=>Object.assign({owner,id,group,label,ops,movable:false,pair:false},o||{});
+const banned=t=>!!S.mem.bans[t];
+const bBanned=t=>!!S.mem.bans['b:'+t];
+function pv(t,d){const n=T[t].vars.length,p=S.mem.prefs[t];return(p!=null&&p<n)?p:(d<n?d:0);}
+function seatT(){return!banned('bench')?'bench':!banned('stump')?'stump':null;}
+function plantT(){return['flower','bush'].find(t=>!banned(t))||null;}
+function firstRest(){return!S.projects.some(p=>p.kind==='rest'&&p.c.done>0);}
+function bspec(type,owner,base){const t=BT[type],pref=S.mem.bprefs[type]||{};const s=Object.assign({type},base);
+  if(pref.roofMat&&t.roofMat.includes(pref.roofMat))s.mats=Object.assign({},s.mats,{roof:pref.roofMat});
+  if(pref.wallMat&&t.wallMat&&t.wallMat.includes(pref.wallMat))s.mats=Object.assign({},s.mats,{wall:pref.wallMat});
+  if(pref.roof&&t.roofs.includes(pref.roof))s.roof=pref.roof;if(pref.h&&t.H.includes(pref.h))s.h=pref.h;return s;}
+function nameFor(b,list){const base=(b.owner==='me'?'내 ':b.owner==='mori'?'모리의 ':b.owner==='kan'?'칸의 ':'')+BT[b.type].name;
+  const used=new Set((list||S.buildings).filter(x=>x!==b).map(x=>x.name));if(!used.has(base))return base;for(let k=2;;k++)if(!used.has(base+' '+k))return base+' '+k;}
+
+/* 부지 찾기: 발자국·여백·출입구 앞·도달성(입구 줄에서 새 출입구와 기존 출입구 모두 닿음)을 모두 만족하는 자리 중 주민 취향 점수가 높은 곳 */
+function vgWalk(vg,i){const c=vg[i];return c.g!=='water'&&!(c.o&&T[c.o].block)&&!c.closed&&!c.pclosed;}
+function reachSet(vg){const seen=new Set(),q=[];for(let x=0;x<N;x++){const i=idx(x,0);if(vgWalk(vg,i)){seen.add(i);q.push(i);}}
+  for(let h=0;h<q.length;h++){const i=q[h],x=i%N,z=(i/N)|0;for(const[a,b]of DIR4){if(!inb(x+a,z+b))continue;const j=idx(x+a,z+b);if(!seen.has(j)&&vgWalk(vg,j)){seen.add(j);q.push(j);}}}return seen;}
+function bFits(vg,s,x,z){
+  const t=BT[s.type],w=s.w,d=s.d;if(x<0||z<0||x+w>N||z+d>N)return{ok:false,why:'땅 밖'};
+  for(let zz=z;zz<z+d;zz++)for(let xx=x;xx<x+w;xx++){const i=idx(xx,zz),c=vg[i],g=S.grid[i];
+    if(c.b||c.pb)return{ok:false,why:'다른 건물 자리'};if(g.keep)return{ok:false,why:'보존 구역'};if(g.ut!=null)return{ok:false,why:'사용자가 손댄 칸'};
+    if(c.door)return{ok:false,why:'다른 건물 출입구 앞'};if(c.g!=='grass'||c.o||c.plan.g||c.plan.o)return{ok:false,why:c.g==='water'?'연못 위':c.g==='path'?'길 위':'물건이 있는 칸'};}
+  for(let zz=z-1;zz<=z+d;zz++)for(let xx=x-1;xx<=x+w;xx++){if(!inb(xx,zz)||(xx>=x&&xx<x+w&&zz>=z&&zz<z+d))continue;const c=vg[idx(xx,zz)];if(c.b||c.pb)return{ok:false,why:'다른 건물과 붙음'};}
+  const fb={type:s.type,x,z,w,d,door:s.door};const dc=doorCells(fb);
+  for(const[a,b]of dc){if(!inb(a,b))return{ok:false,why:'출입구가 땅 밖'};const c=vg[idx(a,b)];if(c.g==='water'||(c.o&&T[c.o].block)||c.b||c.pb)return{ok:false,why:'출입구 앞이 막힘'};}
+  if(t.closed||dc.length){
+    const tmp=[];for(let zz=z;zz<z+d;zz++)for(let xx=x;xx<x+w;xx++){const c=vg[idx(xx,zz)];tmp.push([c,c.pclosed]);if(t.closed)c.pclosed=true;}
+    const seen=reachSet(vg);tmp.forEach(([c,v])=>c.pclosed=v);
+    for(const[a,b]of dc)if(!seen.has(idx(a,b)))return{ok:false,why:'출입구에 닿는 길이 없음'};
+    for(let i=0;i<vg.length;i++)if(vg[i].door&&!seen.has(i))return{ok:false,why:'다른 건물 출입을 막음'};
+  }
+  return{ok:true};
+}
+function sitePrefs(owner,s,vg){
+  const t=BT[s.type],sides=t.door?(owner==='kan'?['S','N']:['S','E','W','N']):[null];const out=[];
+  const water=[],trees=[];vg.forEach((c,i)=>{if(c.g==='water')water.push(i);if(c.o==='tree')trees.push(i);});
+  const dist=(cx,cz,arr)=>arr.reduce((m,i)=>Math.min(m,Math.max(Math.abs(i%N-cx),Math.abs(((i/N)|0)-cz))),99);
+  const dims=[[s.w,s.d]];if(s.w!==s.d&&BT[s.type].W.includes(s.d)&&BT[s.type].D.includes(s.w))dims.push([s.d,s.w]);
+  for(const[w,d]of dims)for(let z=1;z+d<=N-1;z++)for(let x=1;x+w<=N-1;x++){
+    const cx=x+(w-1)/2,cz=z+(d-1)/2;let base;
+    if(owner==='kan')base=-Math.abs(cx-MID())*3-Math.abs(cz-N*.55)*.35;
+    else{const dw=dist(cx,cz,water),dt=dist(cx,cz,trees);base=-Math.min(dw,dt)*1.6-(dw>3?1:0)+(Math.abs(cx-MID())>2?1.5:0)-Math.abs(cz-N*.45)*.12;}
+    for(const side of sides){let sc=base;let door=null;
+      if(side){const len=sideLen(w,d,side),at=Math.floor((len-t.door)/2);door={side,at};
+        if(owner==='kan')sc+=side==='S'?2:0;
+        else{const f=doorCells({type:s.type,x,z,w,d,door})[0];if(f){sc-=dist(f[0],f[1],water)*.4;}if(side==='N')sc-=.6;}}
+      out.push({x,z,w,d,door,sc:sc-idx(x,z)*1e-5});}
+  }
+  out.sort((a,b)=>b.sc-a.sc);return out;
+}
+function findSite(vg,owner,s,limit){const c=sitePrefs(owner,s,vg);let tried=0;
+  for(const o of c){const r=bFits(vg,Object.assign({},s,{w:o.w,d:o.d,door:o.door}),o.x,o.z);if(r.ok)return o;if(limit&&++tried>limit)break;}return null;}
+
+function moriSeed(res,rest){const doors=doorSet();const c=[];for(let z=0;z<N;z++)for(let x=0;x<N;x++)if(freeCell(x,z,res,doors))c.push({x,z,n:natureN(x,z)+(rest?(nearTree(x,z)?3:0)+(nearWater(x,z)?3:0):0)});c.sort((a,b)=>b.n-a.n||idx(a.x,a.z)-idx(b.x,b.z));return c[0]||null;}
+function cluster(seed,count,res){const doors=doorSet();const out=[],seen=new Set([idx(seed.x,seed.z)]),q=[seed];
+  for(let h=0;h<q.length&&out.length<count;h++){const c=q[h];for(const[a,b]of DIR8){const x=c.x+a,z=c.z+b,i=idx(x,z);if(out.length>=count)break;if(!inb(x,z)||seen.has(i))continue;seen.add(i);if(freeCell(x,z,res,doors)){out.push({x,z});q.push({x,z});}}}
+  return out;}
+function aroundB(site,count,res,prefer){const doors=doorSet();const out=[],{x,z,w,d}=site;const ring=[];
+  for(let zz=z-1;zz<=z+d;zz++)for(let xx=x-1;xx<=x+w;xx++){if(xx>=x&&xx<x+w&&zz>=z&&zz<z+d)continue;ring.push([xx,zz]);}
+  const dc=site.door?doorCells({type:site.type||'house',x,z,w,d,door:site.door}).map(([a,b])=>idx(a,b)):[];
+  ring.sort((a,b)=>(prefer?prefer(a)-prefer(b):0)||idx(a[0],a[1])-idx(b[0],b[1]));
+  for(const[xx,zz]of ring){if(out.length>=count)break;if(dc.includes(idx(xx,zz)))continue;if(dc.some(i=>Math.abs(i%N-xx)<=0&&Math.abs(((i/N)|0)-zz)<=0))continue;if(freeCell(xx,zz,res,doors))out.push([xx,zz]);}
+  return out;}
+function vgNow(){const vg=vClone();return vg;}
+
+function moriPlan(kind){
+  const res=reserved(),fs=[],s=seatT(),pl=plantT(),O=Math.floor((N-8)/2);let text;
+  const add=(x,z)=>[x+O,z];
+  if(kind==='rest'&&firstRest()){
+    text='연못을 하나 파고, 물 쪽을 보며 앉는 자리를 두자. 길은 살짝 굽혀서 걸어 들어가며 물이 보이게.';
+    if(!banned('water'))fs.push(F('mori','m-pond','water','작은 연못',[[1,5],[2,5],[1,6]].map(([x,z])=>P(...add(x,z),'g','water'))));
+    if(!banned('path'))fs.push(F('mori','m-path','path','굽은 자갈길',[[4,0],[4,1],[3,1],[3,2],[3,3],[3,4]].map(([x,z])=>P(...add(x,z),'g','path',pv('path',0)))));
+    if(s)fs.push(F('mori','m-seat','seat','물가 '+nm(s),[P(...add(3,5),'o',s,pv(s,0))],{movable:true}));
+    if(!banned('tree'))fs.push(F('mori','m-shade','plant','그늘 나무 둘',[P(...add(4,6),'o','tree',pv('tree',0)),P(...add(0,4),'o','tree',pv('tree',0))],{movable:true}));
+    const pk=[];if(!banned('reed'))pk.push(P(...add(2,6),'o','reed',0));
+    if(pl==='flower')pk.push(P(...add(0,6),'o','flower',pv('flower',0)),P(...add(2,3),'o','flower',pv('flower',1)));
+    if(!banned('bush'))pk.push(P(...add(0,5),'o','bush',0));
+    if(pk.length)fs.push(F('mori','m-plant','plant','물가 식재',pk,{movable:true}));
+  }else if(kind==='house'||kind==='workshop'){
+    if(bBanned(kind))return{text:`${jo(BT[kind].name,'은/는')} 빼기로 했었지. 이번엔 안 지을게.`,features:[]};
+    const base=kind==='house'?{w:2,d:2,h:1,roof:'gable',mats:{roof:'thatch',wall:'timber',floor:'oak'}}:{w:4,d:3,h:2,roof:'shed',mats:{roof:'tin',wall:'plank',floor:'walnut'}};
+    const spec=bspec(kind,'mori',base);const site=findSite(vClone(),'mori',spec);
+    if(!site)return{text:'나무랑 물 가까이에 지을 빈자리가 없어.',features:[]};
+    const sp=Object.assign({},spec,{w:site.w,d:site.d,door:site.door});
+    text=kind==='house'?`물이랑 나무 가까운 데에 목조 집을 앉히자. 지붕은 ${MATS.roof[sp.mats.roof][0]} ${ROOFF[sp.roof]}, 문은 ${SIDE_KO[site.door.side]}으로.`
+      :`나무 옆 트인 데에 판자 작업실. 외쪽 지붕으로 낮게, 넓은 문은 ${SIDE_KO[site.door.side]}으로.`;
+    fs.push(F('mori','m-'+kind,'building',`${BT[kind].name}(${MATS.wall[sp.mats.wall][0]}·${MATS.roof[sp.mats.roof][0]}·${ROOFF[sp.roof]} ${site.w}×${site.d})`,[{op:'bnew',x:site.x,z:site.z,spec:sp}],{movable:true}));
+    const ring=aroundB(Object.assign({type:kind},site),3,res,([a,b])=>-natureN(a,b));const ops=[];
+    ring.forEach(([a,b],i)=>{let t=i===0&&!banned('tree')?'tree':kind==='workshop'?'stump':pl;if(t&&!banned(t))ops.push(P(a,b,'o',t,t==='flower'?pv('flower',i%3):0));});
+    if(ops.length)fs.push(F('mori','m-'+kind+'-g',kind==='house'?'plant':'plant',kind==='house'?'집 둘레 나무·꽃':'나무와 장작 그루터기',ops,{movable:true}));
+  }else{
+    const seed=moriSeed(res,kind==='rest');
+    if(!seed)return{text:'빈자리가 거의 없어.',features:[]};
+    if(kind==='rest'){
+      text='나무랑 물 가까운 빈자리에 작게 앉을 데를 하나 더 두자.';
+      if(s)fs.push(F('mori','m-seat2','seat',(nearWater(seed.x,seed.z)?'물가 ':nearTree(seed.x,seed.z)?'나무 곁 ':'꽃 곁 ')+nm(s),[P(seed.x,seed.z,'o',s,pv(s,0))],{movable:true}));
+      const cl=cluster(seed,2,res);const ops=[];
+      cl.forEach((c,i)=>{if(i===0&&natureN(seed.x,seed.z)===0&&!banned('tree'))ops.push(P(c.x,c.z,'o','tree',pv('tree',0)));else if(pl)ops.push(P(c.x,c.z,'o',pl,pl==='flower'?pv('flower',i%3):0));});
+      if(ops.length)fs.push(F('mori','m-plant2','plant','자리 둘레 식재',ops,{movable:true}));
+    }else{
+      text='물가랑 나무 사이 빈 데를 몽글몽글 채우자.';
+      const cl=[seed,...cluster(seed,5,res)];const ops=[];
+      cl.forEach((c,i)=>{let t=pl;if(nearWater(c.x,c.z)&&!banned('reed')&&i%2===1)t='reed';else if(i%3===2&&!banned('bush'))t='bush';if(t)ops.push(P(c.x,c.z,'o',t,t==='flower'?pv('flower',i%3):0));});
+      if(ops.length)fs.push(F('mori','m-garden','plant','물가 꽃무리',ops,{movable:true}));
+    }
+  }
+  const doors=doorSet();
+  fs.forEach(f=>f.ops=f.ops.filter(o=>o.op==='bnew'||freeCell(o.x,o.z,res,doors)));
+  return{text,features:fs.filter(f=>f.ops.length)};
+}
+function mirrorPairs(res,need){const doors=doorSet(),out=[];const rows=[];for(let z=N-3;z>=1;z--)rows.push(z);
+  for(const z of rows)for(let x=Math.floor(N/2)-2;x>=1;x--){if(freeCell(x,z,res,doors)&&freeCell(MX(x),z,res,doors)){out.push([x,z]);if(out.length>=need)return out;}}return out;}
+function kanPlan(kind){
+  const res=reserved(),fs=[],s=seatT(),O=Math.floor((N-8)/2);let text;const add=(x,z)=>[x+O,z];
+  if(kind==='rest'&&firstRest()){
+    text='입구에서 곧게 이어지는 판석길 끝에 정자를 세우겠습니다. 좌석은 지붕 아래 좌우 한 쌍으로.';
+    if(!banned('path'))fs.push(F('kan','k-axis','path','축선 판석길',[0,1,2].flatMap(z=>[P(...add(3,z),'g','path',pv('path',1)),P(...add(4,z),'g','path',pv('path',1))]),{pair:true}));
+    if(!bBanned('pavilion')){
+      const sp=bspec('pavilion','kan',{w:2,d:2,h:1,roof:'hip',mats:{roof:'slate',floor:'oak'},door:null});
+      fs.push(F('kan','k-pav','building',`정자(${MATS.roof[sp.mats.roof][0]}·${ROOFF[sp.roof]} 2×2)`,[{op:'bnew',x:3+O,z:3,spec:sp}],{pair:true}));
+      if(s)fs.push(F('kan','k-seats','seat',nm(s)+' 한 쌍',[P(...add(3,4),'o',s,pv(s,1)),P(...add(4,4),'o',s,pv(s,1))],{pair:true,movable:true}));
+    }
+    if(!banned('lamp'))fs.push(F('kan','k-lamps','light','석등 한 쌍',[P(...add(2,2),'o','lamp',pv('lamp',0)),P(...add(5,2),'o','lamp',pv('lamp',0))],{pair:true,movable:true}));
+    if(!banned('bush'))fs.push(F('kan','k-hedge','plant','회양목 한 쌍',[P(...add(2,5),'o','bush',0),P(...add(5,5),'o','bush',0)],{pair:true,movable:true}));
+  }else if(kind==='house'||kind==='workshop'){
+    if(bBanned(kind))return{text:`${jo(BT[kind].name,'은/는')} 빼기로 하셨습니다. 이번엔 짓지 않겠습니다.`,features:[]};
+    const base=kind==='house'?{w:3,d:2,h:2,roof:'hip',mats:{roof:'slate',wall:'plaster',floor:'oak'}}:{w:4,d:3,h:3,roof:'gable',mats:{roof:'redtile',wall:'brick',floor:'walnut'}};
+    const spec=bspec(kind,'kan',base);const site=findSite(vClone(),'kan',spec);
+    if(!site)return{text:'축에 맞출 자리가 없습니다.',features:[]};
+    const sp=Object.assign({},spec,{w:site.w,d:site.d,door:site.door});
+    text=kind==='house'?`중앙 축에 맞춰 회벽 집을 두겠습니다. ${ROOFF[sp.roof]} 지붕, 문은 ${SIDE_KO[site.door.side]}, 문 앞 좌우에 석등.`
+      :`벽돌 작업실을 축에 맞춰 세우겠습니다. 맞배 지붕, 넓은 문은 ${SIDE_KO[site.door.side]} 가운데.`;
+    fs.push(F('kan','k-'+kind,'building',`${BT[kind].name}(${MATS.wall[sp.mats.wall][0]}·${MATS.roof[sp.mats.roof][0]}·${ROOFF[sp.roof]} ${site.w}×${site.d})`,[{op:'bnew',x:site.x,z:site.z,spec:sp}],{movable:true}));
+    if(!banned('lamp')){const dc=doorCells(Object.assign({type:kind},site));const doors=doorSet();
+      const s0=dc[0],s1=dc[dc.length-1];let pair=[];
+      if(site.door.side==='S'||site.door.side==='N')pair=[[s0[0]-1,s0[1]],[s1[0]+1,s1[1]]];else pair=[[s0[0],s0[1]-1],[s1[0],s1[1]+1]];
+      if(pair.every(([a,b])=>freeCell(a,b,res,doors)))fs.push(F('kan','k-'+kind+'-l','light','문 앞 석등 한 쌍',pair.map(([a,b])=>P(a,b,'o','lamp',pv('lamp',0))),{pair:false}));}
+  }else if(kind==='rest'){
+    text='좌우 대칭으로 한 칸짜리 정자를 한 쌍 두겠습니다.';
+    const pr=mirrorPairs(res,1);
+    if(pr.length){const[x,z]=pr[0];
+      if(!bBanned('pavilion')){const sp=bspec('pavilion','kan',{w:1,d:1,h:1,roof:'pyramid',mats:{roof:'slate',floor:'oak'},door:null});
+        fs.push(F('kan','k-kiosk','building','작은 정자 한 쌍',[{op:'bnew',x,z,spec:sp},{op:'bnew',x:MX(x),z,spec:sp}],{pair:true}));}
+      if(s)fs.push(F('kan','k-kseats','seat',nm(s)+' 한 쌍',[P(x,z,'o',s,pv(s,1)),P(MX(x),z,'o',s,pv(s,1))],{pair:true}));
+      const doors=doorSet();if(!banned('lamp')&&freeCell(x,z-1,res,doors)&&freeCell(MX(x),z-1,res,doors))fs.push(F('kan','k-lamps2','light','석등 한 쌍',[P(x,z-1,'o','lamp',pv('lamp',0)),P(MX(x),z-1,'o','lamp',pv('lamp',0))],{pair:true,movable:true}));}
+  }else{
+    text='중앙 축을 기준으로 좌우 같은 화단을 맞추겠습니다.';
+    const pl=plantT();
+    mirrorPairs(res,3).forEach(([x,z],i)=>{const t=i===2?(banned('bush')?pl:'bush'):pl;if(t)fs.push(F('kan','k-bed'+i,'plant',(t==='bush'?'회양목':nm(t))+' 화단 한 쌍',[P(x,z,'o',t,t==='flower'?pv('flower',0):0),P(MX(x),z,'o',t,t==='flower'?pv('flower',0):0)],{pair:true,movable:true}));});
+  }
+  const doors=doorSet();
+  fs.forEach(f=>f.ops=f.ops.filter(o=>o.op==='bnew'||freeCell(o.x,o.z,res,doors)||(f.group==='seat'&&fs.some(g=>g.group==='building'&&g.ops.some(b=>b.op==='bnew'&&o.x>=b.x&&o.x<b.x+b.spec.w&&o.z>=b.z&&o.z<b.z+b.spec.d)))));
+  return{text,features:fs.filter(f=>f.ops.length)};
+}
+function liveAgreement(){const live=S.mem.agreements.filter(a=>{const p=S.projects.find(q=>q.pid===a.pid);return!p||p.status!=='cancelled';});return live[live.length-1];}
+function memNotes(id,kind,fs){
+  const m=S.mem,out=[],last=liveAgreement();
+  const used=new Set(fs.flatMap(f=>f.ops.map(o=>o.op==='bnew'?'b:'+o.spec.type:o.type)));
+  const once=[...new Set(m.history.filter(h=>h.act==='remove'&&h.scope==='once').map(h=>h.type))].filter(t=>T[t]&&!m.bans[t]&&used.has(t));
+  const keepN=S.grid.filter(c=>c.keep).length,userN=S.grid.filter(c=>c.ut!=null).length;
+  if(id==='mori'){
+    if(last)out.push(`지난번엔 '${last.summary}'로 했지.`);
+    if(m.bans.bench&&used.has('stump'))out.push('벤치는 앞으로 안 쓰기로 했으니 그루터기로 할게.');
+    if(m.bans.flower)out.push('꽃은 빼기로 했지. 덤불이랑 갈대로 채울게.');
+    if(userN)out.push('네가 손댄 칸은 그대로 둘게.');
+  }else{
+    if(last)out.push('직전 합의의 축을 이어가겠습니다.');
+    const bp=fs.find(f=>f.group==='building');if(bp){const sp=bp.ops[0].spec,pref=m.bprefs[sp.type];if(pref&&pref.roofMat===sp.mats.roof)out.push(`지붕은 고르신 ${jo(MATS.roof[sp.mats.roof][0],'으로/로')}.`);}
+    if(keepN)out.push(`보존 구역 ${keepN}칸은 피했습니다.`);
+    if(S.buildings.length&&fs.some(f=>f.group==='building'))out.push('기존 건물의 출입구와 길은 막지 않게 자리를 골랐습니다.');
+    once.forEach(t=>out.push(`${jo(nm(t),'은/는')} 지난번에 '이번만' 철거로 기록돼 있어 넣었습니다. 빼려면 '${nm(t)} 앞으로 빼'라고 해주세요.`));
+  }
+  return out;
+}
+const SimBrain={
+  name:'SimBrain (규칙 기반)',
+  propose(id,req){const p=id==='mori'?moriPlan(req.kind):kanPlan(req.kind);p.notes=memNotes(id,req.kind,p.features);return p;},
+  comment(id,ev){
+    if(ev.type!=='toggle')return null;const f=ev.f,off=!ev.on;
+    if(id==='mori'){
+      if(f.id==='m-pond'&&off)return'연못이 빠지면 물가 자리가 그냥 길가 자리가 돼. 그래도 네가 정한 대로 할게.';
+      if(f.id==='m-shade'&&off)return'그늘 나무가 없으면 한낮엔 좀 따가울 거야.';
+      if(f.group==='building'&&off)return'집을 빼면 둘레 식재만 남아. 괜찮아?';
+      if(f.owner==='mori')return off?'응, 그 부분은 빼둘게.':'좋아, 다시 넣어둘게.';
+    }else{
+      if(f.id==='k-pav'&&off)return'정자가 빠지면 지붕 아래 자리가 없어집니다.';
+      if(f.id==='k-lamps'&&off)return'석등이 빠지면 저녁 동선이 어두워집니다. 기록만 해두겠습니다.';
+      if(f.id==='m-path'&&!off)return'길이 두 갈래가 되면 입구 축이 흐려집니다. 겹치는 칸은 판석길로 합쳤습니다.';
+      if(f.owner==='kan')return off?'알겠습니다. 그 자리는 비워두겠습니다.':'다시 넣겠습니다.';
+    }
+    return null;
+  },
+  suggest(id){
+    const res=reserved(),doors=doorSet();
+    if(id==='kan'){
+      for(let z=0;z<N;z++)for(let x=0;x<N;x++){const c=cell(x,z);if(!c.o||!['bench','lamp'].includes(c.o)||x===MX(x)||banned(c.o)||c.b)continue;
+        const m=cell(MX(x),z);if(m.o===c.o||!freeCell(MX(x),z,res,doors))continue;const sig=`kan:mirror:${x},${z}:${c.o}`;if(S.mem.declined.includes(sig))continue;
+        return{sig,text:`(${x},${z})의 ${vn(c.o,c.vo)} 맞은편 (${MX(x)},${z})이 비어 있습니다. 같은 걸 두면 축이 맞습니다. 둘까요?`,ops:[{op:'place',x:MX(x),z,layer:'o',type:c.o,v:c.vo}]};}
+      for(const b of S.buildings){if(b.status!=='built'||!BT[b.type].door||banned('lamp'))continue;const dc=doorCells(b);const s0=dc[0],s1=dc[dc.length-1];
+        const pair=(b.door.side==='S'||b.door.side==='N')?[[s0[0]-1,s0[1]],[s1[0]+1,s1[1]]]:[[s0[0],s0[1]-1],[s1[0],s1[1]+1]];
+        if(!pair.every(([a,c])=>freeCell(a,c,res,doors)))continue;if(pair.some(([a,c])=>DIR8.some(([u,v])=>inb(a+u,c+v)&&cell(a+u,c+v).o==='lamp')))continue;
+        const sig=`kan:doorlamp:${b.id}`;if(S.mem.declined.includes(sig))continue;
+        return{sig,text:`${b.name} 문 앞이 어둡습니다. 좌우에 석등 한 쌍을 두면 저녁에도 출입구가 보입니다. 둘까요?`,ops:pair.map(([a,c])=>P(a,c,'o','lamp',pv('lamp',0)))};}
+      return null;
+    }
+    const water=[];S.grid.forEach((c,i)=>{if(c.g==='water')water.push([i%N,(i/N)|0]);});
+    if(water.length&&!banned('reed')){
+      let planted=0;const edge=[],seen=new Set();
+      water.forEach(([x,z])=>DIR4.forEach(([a,b])=>{const nx=x+a,nz=z+b;if(!inb(nx,nz))return;const c=cell(nx,nz),i=idx(nx,nz);if(c.g==='water'||seen.has(i))return;seen.add(i);if(c.o&&T[c.o].nature)planted++;else if(freeCell(nx,nz,res,doors))edge.push([nx,nz]);}));
+      if(planted<2&&edge.length){const pick=edge.slice(0,2);const sig='mori:reed:'+pick.join('|');
+        if(!S.mem.declined.includes(sig))return{sig,text:'연못 가장자리가 좀 휑해. 갈대 두어 포기 심어도 될까?',ops:pick.map(([x,z])=>P(x,z,'o','reed',0))};}
+    }
+    if(!banned('tree')){
+      for(const b of S.buildings){if(b.status!=='built'||b.type==='pavilion')continue;if(bCells(b).some(([x,z])=>nearTree(x,z)))continue;
+        const ring=aroundB(b,1,res);if(!ring.length)continue;const sig=`mori:btree:${b.id}`;if(S.mem.declined.includes(sig))continue;
+        return{sig,text:`${b.name} 곁에 나무가 하나도 없네. (${ring[0][0]},${ring[0][1]})에 한 그루 심을까?`,ops:[P(ring[0][0],ring[0][1],'o','tree',pv('tree',0))]};}
+    }
+    return null;
+  }
+};
+let brain=SimBrain;
+
+/* ================= 5. 계획 합성·충돌 해결·지표 ================= */
+const PRI={water:7,path:6,bench:5,stump:5,lamp:4,tree:3,bush:2,reed:2,flower:1};
+function vClone(){const vg=S.grid.map(c=>{const b=c.b?BM.get(c.b):null;return{g:c.g,o:c.o,vg:c.vg,vo:c.vo,b:c.b,closed:!!(b&&BT[b.type].closed),pav:!!(b&&b.type==='pavilion'),door:false,pb:null,pclosed:false,ppav:false,plan:{}};});
+  S.buildings.forEach(b=>doorCells(b).forEach(([x,z])=>{if(inb(x,z))vg[idx(x,z)].door=true;}));return vg;}
+function vCan(vg,o){
+  const c=vg[idx(o.x,o.z)];
+  if(o.layer==='g'){
+    if(c.b||c.pb)return{s:'no',why:'건물 자리',by:c.plan.b};
+    if(c.plan.g)return c.g===o.type?{s:'same',by:c.plan.g}:{s:'no',why:`${nm(c.g)}${josa(nm(c.g),'과/와')} 겹침`,by:c.plan.g};
+    if(c.g!=='grass')return c.g===o.type?{s:'same'}:{s:'no',why:`이미 ${nm(c.g)}`};
+    if(o.type==='water'&&(c.o||c.plan.o))return{s:'no',why:`${nm(c.o)} 자리`,by:c.plan.o};
+    if(o.type==='water'&&c.door)return{s:'no',why:'출입구 앞'};
+    if(o.type==='path'&&c.o&&T[c.o].block)return{s:'no',why:`${nm(c.o)} 자리`,by:c.plan.o};
+    return{s:true};
+  }
+  if(c.o)return c.o===o.type?{s:'same',by:c.plan.o}:{s:'no',why:`${nm(c.o)}${josa(nm(c.o),'과/와')} 겹침`,by:c.plan.o};
+  if(c.g==='water')return{s:'no',why:'연못 위',by:c.plan.g};
+  if(c.g==='path')return{s:'no',why:'길을 막음',by:c.plan.g};
+  if(c.closed||c.pclosed)return{s:'no',why:'건물 안',by:c.plan.b};
+  if((c.pav||c.ppav)&&!T[o.type].seat&&o.type!=='lamp')return{s:'no',why:'정자 마루 위',by:c.plan.b};
+  if(c.door&&T[o.type].block)return{s:'no',why:'출입구 앞',by:c.plan.b};
+  return{s:true};
+}
+function vApply(vg,o){const c=vg[idx(o.x,o.z)];if(o.layer==='g'){c.g=o.type;c.vg=o.v;}else{c.o=o.type;c.vo=o.v;}c.plan[o.layer]=o;}
+function vApplyB(vg,o){const s=o.spec;for(let z=o.z;z<o.z+s.d;z++)for(let x=o.x;x<o.x+s.w;x++){const c=vg[idx(x,z)];c.pb=o.fid+'@'+o.x+','+o.z;c.pclosed=BT[s.type].closed;c.ppav=s.type==='pavilion';c.plan.b=o;}
+  doorCells({type:s.type,x:o.x,z:o.z,w:s.w,d:s.d,door:s.door}).forEach(([x,z])=>{if(inb(x,z)){vg[idx(x,z)].door=true;vg[idx(x,z)].plan.b=vg[idx(x,z)].plan.b||o;}});}
+function units(features){
+  const list=[];
+  features.forEach((f,fi)=>{
+    if(f.pair){const m=new Map();f.ops.forEach(o=>{const k=(o.op==='bnew'?'B':o.layer)+'|'+Math.min(o.x,MX(o.x))+','+o.z;if(!m.has(k))m.set(k,[]);m.get(k).push(o);});m.forEach(ops=>list.push({f,fi,ops}));}
+    else f.ops.forEach(o=>list.push({f,fi,ops:[o]}));
+  });
+  const lo=u=>u.ops[0].op==='bnew'?0:u.ops[0].layer==='g'?1:2;
+  const pri=u=>u.ops[0].op==='bnew'?99:PRI[u.ops[0].type];
+  const ownerRank=u=>{if(u.ops[0].op==='bnew')return u.f.owner==='kan'?0:1;const nat=T[u.ops[0].type].nature;return(u.f.owner==='mori')===!!nat?0:1;};
+  list.sort((a,b)=>lo(a)-lo(b)||pri(b)-pri(a)||ownerRank(a)-ownerRank(b)||a.fi-b.fi);
+  return list;
+}
+function findAlt(vg,u){
+  const o0=u.ops[0],cand=[];
+  if(o0.op==='bnew'){const site=findSite(vg,u.f.owner,o0.spec);if(!site)return null;return[Object.assign({},o0,{x:site.x,z:site.z,spec:Object.assign({},o0.spec,{w:site.w,d:site.d,door:site.door})})];}
+  const ok=o=>vCan(vg,o).s===true&&freeCell(o.x,o.z)&&!doorBlocked(vg,[o]);
+  if(u.f.pair&&u.ops.length===2){
+    const base=Math.min(o0.x,MX(o0.x));
+    for(let z=0;z<N;z++)for(let x=0;x<N/2;x++){const a=Object.assign({},o0,{x,z}),b=Object.assign({},o0,{x:MX(x),z});const d=Math.abs(x-base)+Math.abs(z-o0.z);if(d>0&&d<=3&&ok(a)&&ok(b))cand.push({d,k:idx(x,z),ops:[a,b]});}
+  }else if(u.ops.length===1){
+    for(let dz=-2;dz<=2;dz++)for(let dx=-2;dx<=2;dx++){if(!dx&&!dz)continue;const x=o0.x+dx,z=o0.z+dz;if(!inb(x,z))continue;const a=Object.assign({},o0,{x,z});if(ok(a))cand.push({d:Math.max(Math.abs(dx),Math.abs(dz))+(Math.abs(dx)+Math.abs(dz))*.01,k:idx(x,z),ops:[a]});}
+  }
+  cand.sort((p,q)=>p.d-q.d||p.k-q.k);return cand.length?cand[0].ops:null;
+}
+function pathNet(vg){const isP=i=>vg[i].g==='path'||((vg[i].pav||vg[i].ppav)&&!vg[i].o);const net=new Set(),q=[];for(let x=0;x<N;x++){const i=idx(x,0);if(isP(i)){net.add(i);q.push(i);}}
+  for(let h=0;h<q.length;h++){const i=q[h],x=i%N,z=(i/N)|0;for(const[a,b]of DIR4){if(!inb(x+a,z+b))continue;const j=idx(x+a,z+b);if(!net.has(j)&&isP(j)){net.add(j);q.push(j);}}}return net;}
+function linkTo(vg,out,start,owner,maxLen,net){
+  const si=idx(start[0],start[1]);if(net.has(si))return[];
+  if(DIR4.some(([a,b])=>inb(start[0]+a,start[1]+b)&&net.has(idx(start[0]+a,start[1]+b))))return[];
+  const prev=new Map(),q=[];const okC=(x,z)=>{const c=vg[idx(x,z)];return c.g==='grass'&&!c.o&&!c.b&&!c.pb&&!c.plan.g&&freeCell(x,z);};
+  if(vg[si].g==='grass'&&!vg[si].o&&!vg[si].b&&!vg[si].pb&&freeCell(start[0],start[1])){prev.set(si,-1);q.push(si);}
+  else DIR4.forEach(([a,b])=>{const x=start[0]+a,z=start[1]+b;if(inb(x,z)&&okC(x,z)){prev.set(idx(x,z),-1);q.push(idx(x,z));}});
+  let hit=-1;
+  for(let h=0;h<q.length&&hit<0;h++){const i=q[h],x=i%N,z=(i/N)|0;for(const[a,b]of DIR4){if(!inb(x+a,z+b))continue;const j=idx(x+a,z+b);if(net.has(j)){hit=i;break;}
+    if(prev.has(j)||!okC(x+a,z+b))continue;prev.set(j,i);q.push(j);}}
+  if(hit<0)return[];const cells=[];let k=hit;while(k!==-1){cells.push(k);k=prev.get(k);}
+  if(cells.length>maxLen)return[];
+  cells.forEach(i=>{const o=Object.assign(P(i%N,(i/N)|0,'g','path',owner==='kan'?pv('path',1):pv('path',0)),{owner,fid:'link'});vApply(vg,o);out.push(o);net.add(i);});
+  return cells.map(i=>[i%N,(i/N)|0]);
+}
+function connect(vg,out){
+  const added=[];const net=pathNet(vg);if(!net.size)return added;
+  out.filter(o=>o.op==='bnew'&&BT[o.spec.type].door).forEach(b=>{const dc=doorCells({type:b.spec.type,x:b.x,z:b.z,w:b.spec.w,d:b.spec.d,door:b.spec.door});if(dc.length)added.push(...linkTo(vg,out,dc[0],b.owner,10,net));});
+  out.filter(o=>o.op==='place'&&o.layer==='o'&&T[o.type].seat).forEach(s=>{const c=vg[idx(s.x,s.z)];if(c.pav||c.ppav)return;added.push(...linkTo(vg,out,[s.x,s.z],s.owner,6,net));});
+  return added;
+}
+function doorBlocked(vg,ops){
+  if(!ops.some(o=>(o.layer==='o'&&T[o.type].block)||(o.layer==='g'&&o.type==='water')))return false;
+  if(!vg.some(c=>c.door))return false;
+  const saved=ops.map(o=>{const c=vg[idx(o.x,o.z)];return[c,c.o,c.g];});
+  ops.forEach(o=>{const c=vg[idx(o.x,o.z)];if(o.layer==='o')c.o=o.type;else c.g=o.type;});
+  const seen=reachSet(vg);saved.forEach(([c,o,g])=>{c.o=o;c.g=g;});
+  for(let i=0;i<vg.length;i++)if(vg[i].door&&!seen.has(i))return true;return false;}
+function resolve(features){
+  const vg=vClone(),out=[],ev=[];
+  const tag=(o,f)=>Object.assign({},o,{owner:f.owner,fid:f.id});
+  for(const u of units(features)){
+    if(u.ops[0].op==='bnew'){
+      const fits=u.ops.map(o=>bFits(vg,o.spec,o.x,o.z));
+      if(fits.every(r=>r.ok)){u.ops.forEach(o=>{const t=tag(o,u.f);vApplyB(vg,t);out.push(t);});continue;}
+      const bad=fits.find(r=>!r.ok);
+      if(u.f.movable&&u.ops.length===1){const alt=findAlt(vg,u);if(alt){alt.forEach(o=>{const t=tag(o,u.f);vApplyB(vg,t);out.push(t);});ev.push({kind:'moved',fid:u.f.id,owner:u.f.owner,label:u.f.label,from:u.ops.map(o=>[o.x,o.z]),to:alt.map(o=>[o.x,o.z]),why:bad.why});continue;}}
+      u.ops.forEach(o=>ev.push({kind:'dropped',fid:u.f.id,owner:u.f.owner,label:u.f.label,cell:[o.x,o.z],why:bad.why}));continue;
+    }
+    const r=u.ops.map(o=>vCan(vg,o));
+    if(r.every(x=>x.s===true)&&doorBlocked(vg,u.ops))r.forEach((x,i)=>{r[i]={s:'no',why:'출입구 가는 길을 막음'};});
+    if(r.every(x=>x.s===true)){u.ops.forEach(o=>{const t=tag(o,u.f);vApply(vg,t);out.push(t);});continue;}
+    if(r.every(x=>x.s===true||x.s==='same')){u.ops.forEach((o,i)=>{if(r[i].s===true){const t=tag(o,u.f);vApply(vg,t);out.push(t);}else ev.push({kind:'merged',fid:u.f.id,owner:u.f.owner,label:u.f.label,cell:[o.x,o.z],into:r[i].by?r[i].by.fid:null});});continue;}
+    const bad=r.find(x=>x.s==='no');
+    if(u.f.movable){const alt=findAlt(vg,u);if(alt){alt.forEach(o=>{const t=tag(o,u.f);vApply(vg,t);out.push(t);});ev.push({kind:'moved',fid:u.f.id,owner:u.f.owner,label:u.f.label,from:u.ops.map(o=>[o.x,o.z]),to:alt.map(o=>[o.x,o.z]),why:bad.why,against:bad.by?bad.by.fid:null});continue;}}
+    u.ops.forEach(o=>ev.push({kind:'dropped',fid:u.f.id,owner:u.f.owner,label:u.f.label,cell:[o.x,o.z],why:bad.why,against:bad.by?bad.by.fid:null}));
+  }
+  const fmap=new Map(features.map(f=>[f.id,f]));const seen=reachSet(vg);const kept=[];
+  out.forEach(o=>{if(o.op==='bnew'){kept.push(o);return;}const i=idx(o.x,o.z);const ok=seen.has(i)||DIR8.some(([a,b])=>inb(o.x+a,o.z+b)&&seen.has(idx(o.x+a,o.z+b)));
+    if(ok){kept.push(o);return;}
+    const c=vg[i],g=S.grid[i];if(o.layer==='g'){c.g=g.g;c.vg=g.vg;}else{c.o=g.o;c.vo=g.vo;}delete c.plan[o.layer];
+    const f=fmap.get(o.fid);ev.push({kind:'dropped',fid:o.fid,owner:o.owner,label:f?f.label:'',cell:[o.x,o.z],why:'다 지으면 닿을 수 없는 칸'});});
+  out.length=0;out.push(...kept);
+  const added=connect(vg,out);if(added.length)ev.push({kind:'linked',cells:added});
+  return{ops:out,events:ev,vg};
+}
+function evTexts(ev,features){
+  const lab=id=>{const f=features.find(x=>x.id===id);return f?`${PEOPLE[f.owner].name}의 ${f.label}`:'다른 계획';};
+  const groups=new Map();
+  ev.forEach(e=>{const k=e.kind+'|'+(e.fid||'')+'|'+(e.why||'')+'|'+(e.into||e.against||'');if(!groups.has(k))groups.set(k,[]);groups.get(k).push(e);});
+  const out=[];
+  groups.forEach(list=>{const e=list[0],who=e.owner?PEOPLE[e.owner].name:'';
+    if(e.kind==='merged'){const l=lab(e.into);out.push(`${who}의 ${e.label} ${list.length}칸 → ${l}${josa(l,'과/와')} 같은 자리라 합침`);}
+    else if(e.kind==='dropped')out.push(`${who}의 ${e.label} ${list.map(x=>`(${x.cell})`).join('·')} 뺌 — ${e.why}${e.against?` · ${lab(e.against)}`:''}`);
+    else if(e.kind==='moved')list.forEach(x=>out.push(`${who}의 ${x.label} ${x.from.map(c=>`(${c})`).join('·')} → ${x.to.map(c=>`(${c})`).join('·')} 옮김 — ${x.why}`));
+    else if(e.kind==='linked')out.push(`자리·출입구까지 길이 끊겨 연결 길 ${e.cells.length}칸 추가`);
+  });
+  return out;
+}
+function metrics(vg,ops,kind){
+  const W=i=>vgWalk(vg,i);
+  const free=vg.filter(c=>c.g==='grass'&&!c.o&&!c.b&&!c.pb).length;
+  const dist=new Map(),q=[];for(let x=0;x<N;x++){const i=idx(x,0);if(W(i)){dist.set(i,0);q.push(i);}}
+  for(let h=0;h<q.length;h++){const i=q[h],x=i%N,z=(i/N)|0;for(const[a,b]of DIR4){if(!inb(x+a,z+b))continue;const j=idx(x+a,z+b);if(dist.has(j)||!W(j))continue;dist.set(j,dist.get(i)+1);q.push(j);}}
+  const net=pathNet(vg);
+  const seats=ops.filter(o=>o.op==='place'&&o.layer==='o'&&T[o.type].seat).map(o=>idx(o.x,o.z));
+  let roofS=0,shadeS=0,waterS=0,linked=0,sum=0,cnt=0;
+  seats.forEach(i=>{const x=i%N,z=(i/N)|0,c=vg[i];const under=c.pav||c.ppav;if(under)roofS++;let tree=false,water=false;
+    for(let dz=-2;dz<=2;dz++)for(let dx=-2;dx<=2;dx++){if(!inb(x+dx,z+dz))continue;const cc=vg[idx(x+dx,z+dz)];if(cc.g==='water')water=true;if(Math.abs(dx)<=1&&Math.abs(dz)<=1&&cc.o==='tree')tree=true;}
+    if(under||tree)shadeS++;if(water)waterS++;
+    let best=null,lk=net.has(i)||under;for(const[a,b]of DIR4){if(!inb(x+a,z+b))continue;const j=idx(x+a,z+b);if(dist.has(j))best=best==null?dist.get(j):Math.min(best,dist.get(j));if(net.has(j))lk=true;}
+    if(lk)linked++;if(best!=null){sum+=best+1;cnt++;}});
+  const bl=ops.filter(o=>o.op==='bnew');let doorOK=0,doorLinked=0;
+  bl.forEach(b=>{const dc=doorCells({type:b.spec.type,x:b.x,z:b.z,w:b.spec.w,d:b.spec.d,door:b.spec.door});if(!dc.length){doorOK++;doorLinked++;return;}
+    if(dc.every(([x,z])=>dist.has(idx(x,z))))doorOK++;if(dc.some(([x,z])=>{const i=idx(x,z);return net.has(i)||DIR4.some(([a,b])=>inb(x+a,z+b)&&net.has(idx(x+a,z+b)));}))doorLinked++;});
+  let focal='트인 마당',fz=99;
+  for(const x of[Math.floor(MID()),Math.ceil(MID())])for(let z=0;z<N;z++){const c=vg[idx(x,z)];let f=null;if(c.pb||c.b)f=c.pclosed||c.closed?'건물 벽':'정자';else if(c.g==='water')f='연못';else if(c.o==='tree'||c.o==='bush'||c.o==='reed')f='나무·덤불';if(f){if(z<fz){fz=z;focal=f;}break;}}
+  return{free:Math.round(free/(N*N)*100),seats:seats.length,roofS,shadeS,waterS,linked,steps:cnt?Math.round(sum/cnt*10)/10:null,focal,
+    lamps:ops.filter(o=>o.type==='lamp').length,blds:bl.length,btypes:[...new Set(bl.map(b=>BT[b.spec.type].name))],doorOK,doorLinked,
+    work:{kan:ops.filter(o=>o.owner==='kan').reduce((a,o)=>a+(o.op==='bnew'?4:1),0),mori:ops.filter(o=>o.owner==='mori').reduce((a,o)=>a+(o.op==='bnew'?4:1),0)}};
+}
+function prosCons(m,kind){
+  const p=[],c=[];
+  if(m.blds){p.push(`건물 ${m.blds}채(${m.btypes.join('·')})`);if(m.doorOK<m.blds)c.push(`출입구에 못 닿는 건물 ${m.blds-m.doorOK}`);else p.push('모든 출입구에 걸어서 닿음');if(m.doorLinked<m.blds)c.push(`길과 안 이어진 출입구 ${m.blds-m.doorLinked}`);}
+  if(m.waterS)p.push(`물을 보며 앉는 자리 ${m.waterS}`);else if(kind==='rest'&&m.seats)c.push('물가 조망 없음');
+  if(m.roofS)p.push(`지붕 아래 자리 ${m.roofS} — 비·볕 피함`);else if(m.seats)c.push('비 피할 지붕 없음');
+  if(m.seats&&m.shadeS<m.seats)c.push(`그늘 없는 자리 ${m.seats-m.shadeS}`);
+  if(m.focal==='정자')p.push('입구 정면에 정자가 보임');else if(m.focal==='연못')p.push('입구에서 연못이 먼저 보임');else if(m.focal==='건물 벽')c.push('입구 정면이 건물 벽으로 막힘');else if(kind==='rest')c.push('입구에서 쉼터가 바로 안 보임');
+  if(m.free>=75)p.push(`빈 땅 ${m.free}% — 여백 넉넉`);else if(m.free<60)c.push(`빈 땅 ${m.free}% — 마을이 빽빽함`);
+  if(m.seats&&m.linked<m.seats)c.push(`길과 안 이어진 자리 ${m.seats-m.linked}`);
+  if(kind==='rest'){if(m.lamps)p.push(`저녁 동선 조명 ${m.lamps}`);else c.push('밤엔 어두움');}
+  return{p:p.slice(0,4),c:c.slice(0,4)};
+}
+function evalPlan(feats,kind){const r=resolve(feats);const m=metrics(r.vg,r.ops,kind);return{feats,ops:r.ops,events:r.events,ev:evTexts(r.events,feats),m,pc:prosCons(m,kind)};}
+const cellsOfOps=ops=>ops.map(p=>p.op==='bnew'?[p.x,p.z,'B',p.spec.type,0,p.owner,p.spec.w,p.spec.d,p.spec.door?p.spec.door.side:'',p.spec.mats.roof]:[p.x,p.z,p.layer,p.type,p.v,p.owner]);
+
+/* ================= 6. 요청 → 비교 → 다듬기 → 확정 ================= */
+const KIND_NAME={rest:'쉬는 곳',garden:'꽃밭',house:'작은 집',workshop:'작업실'};
+function request(kind,raw,cmd){
+  const req={kind,text:raw,t:S.tick};S.mem.requests.push(req);if(S.mem.requests.length>40)S.mem.requests.shift();remember(`요청: ${raw}`);log('me','request',kind);bump();
+  const out=IDS.map(id=>brain.propose(id,req,worldView()));
+  if(out.some(o=>o&&typeof o.then==='function')){S.planning=cmd.id;Promise.all(out).then(([pm,pk])=>{S.planning=null;openCompare(kind,raw,pm,pk,cmd);}).catch(e=>{S.planning=null;setStatus(cmd,'rejected','계획을 만들지 못함: '+e.message);});return{st:'running',why:'계획 만드는 중'};}
+  return openCompare(kind,raw,out[0],out[1],cmd);
+}
+function openCompare(kind,raw,pm,pk,cmd){
+  if(!pm.features.length&&!pk.features.length){post('mori',pm.text||'땅에 빈자리가 거의 없어.');post('kan',pk.text||'무언가를 치우거나 보존 구역을 풀어주셔야 합니다.');return{st:'rejected',why:'지을 자리가 없음'};}
+  const id=++S.seq;
+  const o={mori:evalPlan(pm.features,kind),kan:evalPlan(pk.features,kind),mix:evalPlan([...pk.features,...pm.features],kind)};
+  S.compare={id,kind,raw,cmd:cmd.id,feats:{mori:pm.features,kan:pk.features}};
+  const snap={kind,opts:{}};
+  for(const k in o)snap.opts[k]={labels:o[k].feats.map(f=>[f.label,f.owner]),cells:cellsOfOps(o[k].ops),m:o[k].m,pc:o[k].pc,ev:o[k].ev};
+  log('sys','compare',{id,cmd:cmd.id,kind,mori:o.mori.ops.length,kan:o.kan.ops.length,mix:o.mix.ops.length,mixEvents:o.mix.events.length});
+  post('mori',[...pm.notes,pm.text].join(' '));
+  post('kan',[...pk.notes,pk.text].join(' '));
+  post('note','',{cmpId:id,cmp:snap});bump();
+  return{st:'running',why:'세 안 비교 중'};
+}
+function pickBase(base){
+  const c=S.compare;if(!c)return false;
+  const feats=[...c.feats.kan,...c.feats.mori];const on={};feats.forEach(f=>on[f.id]=base==='mix'||f.owner===base);
+  const cm=S.chat.find(x=>x.cmpId===c.id);S.compare=null;touchMsg(cm);
+  S.draft={id:++S.seq,kind:c.kind,raw:c.raw,cmd:c.cmd,base,feats,on,res:null};recalc();
+  const pc=cmdById(c.cmd);if(pc){pc.reason='계획 다듬는 중';touchMsg(msgById(pc.mid));}
+  post('note','',{did:S.draft.id});log('me','pick',base);
+  if(base==='mix')post('kan','겹치는 칸은 정리해 뒀습니다. 항목을 켜고 끄며 보세요.');
+  bump();return true;
+}
+function recalc(){const d=S.draft;const en=d.feats.filter(f=>d.on[f.id]);const e=evalPlan(en,d.kind);d.res={ops:e.ops,m:e.m,pc:e.pc,ev:e.ev};}
+function toggle(fid){
+  const d=S.draft;if(!d)return false;const f=d.feats.find(x=>x.id===fid);if(!f)return false;
+  d.on[fid]=!d.on[fid];recalc();log('me','toggle',{fid,on:d.on[fid]});
+  const ev={type:'toggle',f,on:d.on[fid]};let who=f.owner,line=brain.comment(who,ev,null);
+  if(f.id==='m-path'&&d.on[fid]){who='kan';line=brain.comment('kan',ev,null);}
+  if(line){const last=[...S.chat].reverse().find(m=>m.who===who);if(!last||last.text!==line)post(who,line);}
+  touchMsg(S.chat.find(m=>m.did===d.id));bump();return true;
+}
+function draftType(type,on){const d=S.draft;const fs=d.feats.filter(f=>f.ops.some(o=>o.type===type||(o.op==='bnew'&&o.spec.type===type))&&!!d.on[f.id]!==on);if(!fs.length)return false;fs.forEach(f=>toggle(f.id));return true;}
+function summaryOf(en){const by={kan:[],mori:[]};en.forEach(f=>by[f.owner].push(f.label.replace(/\(.*\)/,'')));
+  const s=a=>{const m=new Map();a.forEach(l=>m.set(l,(m.get(l)||0)+1));const u=[...m].map(([l,n])=>n>1?`${l}×${n}`:l);return u.length>2?u.slice(0,2).join('·')+` 외 ${u.length-2}`:u.join('·');};
+  return[by.kan.length?s(by.kan)+'(칸)':'',by.mori.length?s(by.mori)+'(모리)':''].filter(Boolean).join(' + ');}
+function confirmDraft(){
+  const d=S.draft;if(!d)return{st:'rejected',why:'확정할 초안이 없음'};
+  if(!d.res.ops.length)return{st:'rejected',why:'켜진 항목이 없어 지을 게 없음'};
+  const en=d.feats.filter(f=>d.on[f.id]);const summary=summaryOf(en);
+  const m=S.chat.find(x=>x.did===d.id);if(m){m.final={base:d.base,summary,cells:cellsOfOps(d.res.ops),m:d.res.m};touchMsg(m);}
+  S.mem.agreements.push({t:S.tick,kind:d.kind,base:d.base,summary,features:en.map(f=>f.id),pid:null});remember(`합의: ${summary}`);
+  const ops=d.res.ops;const pc=cmdById(d.cmd);S.draft=null;
+  const nk=ops.filter(o=>o.owner==='kan').length,nmo=ops.filter(o=>o.owner==='mori').length;
+  if(nk&&nmo){say('kan',`구조와 길 ${nk}건은 제가 맡겠습니다.`,null,1);say('mori',`물가랑 심는 건 ${nmo}건, 내가 할게.`,null,1);}
+  else if(nk)say('kan',`${nk}건, 제가 짓겠습니다.`,null,1);else say('mori',`${nmo}건, 내가 할게.`,null,1);
+  call('build',{ops,kind:d.kind,summary,agr:S.mem.agreements.length-1,cmd:d.cmd});log('me','confirm',{n:ops.length});
+  if(pc){pc.reason='공사 시작 대기';touchMsg(msgById(pc.mid));}
+  bump();return{st:'done'};
+}
+function foldPlan(){
+  const id=S.compare?S.compare.cmd:S.draft?S.draft.cmd:null;if(!id)return false;
+  if(S.compare){touchMsg(S.chat.find(x=>x.cmpId===S.compare.id));S.compare=null;}
+  if(S.draft){const m=S.chat.find(x=>x.did===S.draft.id);if(m){m.final={cancelled:true};touchMsg(m);}S.draft=null;}
+  setStatus(cmdById(id),'cancelled','계획을 접음');post('kan','알겠습니다. 계획은 접어두겠습니다.');log('me','fold',id);bump();return true;
+}
+
+/* ================= 7. 공사 실행 ================= */
+const CALLS={build:a=>build(a)};
+function newBuilding(o,owner,pid){
+  const s=o.spec;const id='B'+(++S.bseq);
+  const b={id,name:'',type:s.type,x:o.x,z:o.z,w:s.w,d:s.d,h:s.h,roof:s.roof,mats:Object.assign({},s.mats),door:s.door?Object.assign({},s.door):null,owner,stage:0,status:'planned',keep:false,keepT:null,ut:null,created:S.tick,rv:0,pid};
+  b.name=nameFor(b);S.buildings.push(b);BM.set(id,b);
+  bCells(b).forEach(([x,z])=>{if(inb(x,z)&&!cell(x,z).b)cell(x,z).b=id;});
+  dirtyB(id);log(owner,'bnew',{id,type:b.type,x:b.x,z:b.z,w:b.w,d:b.d});return b;
+}
+function build(a){
+  const cmd=a.cmd?cmdById(a.cmd):null;
+  if(cmd&&cmd.status==='cancelled'){log('sys','build-skipped',{cmd:a.cmd,why:'명령이 취소됨'});return null;}
+  const pid=++S.pid;
+  const pj={pid,kind:a.kind,summary:a.summary,created:S.tick,total:0,c:{done:0,skipped:0,failed:0,cancelled:0},status:'building',issues:[],by:{mori:0,kan:0},cmd:a.cmd||null,bids:[]};
+  S.projects.push(pj);if(a.agr!=null&&S.mem.agreements[a.agr])S.mem.agreements[a.agr].pid=pid;
+  const phase=o=>o.op==='bstage'?1:o.op!=='place'?0:o.layer==='g'?0:(['bench','stump','lamp'].includes(o.type)?2:3);
+  const queued={mori:[],kan:[]};
+  a.ops.forEach(o=>{const who=o.owner==='mori'||o.owner==='kan'?o.owner:'kan';
+    if(o.op==='bnew'){const b=newBuilding(o,who,pid);pj.bids.push(b.id);for(let s=1;s<=4;s++)queued[who].push({op:'bstage',bid:b.id,stage:s,x:b.x,z:b.z,type:b.type,owner:who});}
+    else queued[who].push(Object.assign({},o));});
+  IDS.forEach(id=>{const mine=queued[id].map(o=>Object.assign(o,{pid,created:S.tick,cmd:a.cmd||null}));mine.sort((p,q)=>phase(p)-phase(q));
+    mine.forEach((o,i)=>o.oid=`${pid}-${id}-${i}`);pj.by[id]=mine.length;S.res[id].q.push(...mine);});
+  pj.total=pj.by.mori+pj.by.kan;
+  if(cmd&&cmd.status==='running'){cmd.pid=pid;cmd.reason=`공사 0/${pj.total}`;touchMsg(msgById(cmd.mid));}
+  if(['rest','garden','house','workshop'].includes(a.kind))note(`공사 시작 · 칸 ${pj.by.kan}건 · 모리 ${pj.by.mori}건`);
+  log('sys','build',{pid,kind:a.kind,total:pj.total,by:pj.by,cmd:a.cmd||null});bump();
+  if(!pj.total)settle(pj);return pj;
+}
+function projectOf(pid){return S.projects.find(p=>p.pid===pid);}
+function bWorkCells(b,avoid){const s=new Set();for(let z=b.z-1;z<=b.z+b.d;z++)for(let x=b.x-1;x<=b.x+b.w;x++){const inside=x>=b.x&&x<b.x+b.w&&z>=b.z&&z<b.z+b.d;if(inside&&BT[b.type].closed)continue;if(walkable(x,z)&&idx(x,z)!==avoid)s.add(idx(x,z));}return s;}
+function sk(reason){return{status:'skipped',reason};}
+function keepWhy(keepT,created){return keepT!=null&&created!=null&&keepT>=created?'실행 전에 보존 지정됨':'보존 구역';}
+function checkOp(o){
+  if(o.pid){const pj=projectOf(o.pid);if(pj&&pj.status==='cancelled')return{status:'cancelled',reason:'취소된 공사'};}
+  if(o.op==='bstage'){
+    const b=BM.get(o.bid);if(!b)return sk('건물이 이미 없음');if(b.status==='halted')return{status:'cancelled',reason:'공사 중지된 건물'};
+    if(b.stage>=o.stage)return sk('이미 된 단계');if(b.stage!==o.stage-1)return sk('앞 단계가 안 됨');
+    if(o.stage===1){
+      if(b.keep)return sk(keepWhy(b.keepT,o.created));
+      for(const[x,z]of bCells(b)){const c=cell(x,z);if(c.keep)return sk(keepWhy(c.keepT,o.created));if(c.ut!=null&&c.ut>=o.created)return sk('사용자가 먼저 바꾼 칸');
+        if(c.g!=='grass'||c.o)return sk('자리에 다른 것이 생김');if(c.b!==b.id)return sk('다른 건물 자리');}
+      for(const[x,z]of doorCells(b)){if(!inb(x,z))return sk('출입구가 땅 밖');const c=cell(x,z);if(blocks(c))return sk('출입구 앞이 막힘');}
+    }
+    return null;
+  }
+  if(o.op==='bmod'||o.op==='bremove'){
+    const b=BM.get(o.bid);if(!b)return sk('건물이 이미 없음');
+    if(b.keep)return sk(keepWhy(b.keepT,o.created));if(b.ut!=null&&o.created!=null&&b.ut>=o.created)return sk('사용자가 먼저 바꾼 건물');
+    if(o.op==='bmod'){const p=o.attr?bPatchFor(b,o.attr):o.patch;if(!p)return sk('그 건물 유형에 없는 항목');const v=validPatch(b,p);if(!v.ok)return sk(v.why);}
+    return null;
+  }
+  if(!inb(o.x,o.z))return{status:'failed',reason:'범위 밖'};
+  const c=cell(o.x,o.z);
+  if(c.keep)return sk(o.auto?'보존·사용자 칸':keepWhy(c.keepT,o.created));
+  if(o.auto&&c.ut!=null)return sk('보존·사용자 칸');
+  if(c.ut!=null&&o.created!=null&&c.ut>=o.created)return sk('사용자가 먼저 바꾼 칸');
+  if(o.op==='place'){
+    if(o.layer==='g'){if(c.b)return sk('건물 자리');if(c.g===o.type&&c.vg===o.v)return sk('이미 있음');if(c.g!=='grass'&&c.g!==o.type)return sk(`이미 ${nm(c.g)}`);if(o.type==='water'&&c.o)return sk(`${nm(c.o)} 있음`);}
+    else{if(c.g==='water')return sk('연못 위');if(c.o===o.type&&c.vo===o.v)return sk('이미 있음');if(c.o&&c.o!==o.type)return sk(`이미 ${nm(c.o)}`);
+      if(c.b){const b=BM.get(c.b);if(b&&BT[b.type].closed)return sk('건물 안');if(b&&!T[o.type].seat&&o.type!=='lamp')return sk('정자 마루 위');}
+      if(T[o.type].block&&doorSet().has(idx(o.x,o.z)))return sk('출입구 앞');}
+  }else{if(typeAt(c,o.layer)!==o.type)return sk('이미 없음');}
+  return null;
+}
+function applyOp(o,who){
+  if(o.op==='bstage'){const b=BM.get(o.bid);b.stage=o.stage;b.status=o.stage>=4?'built':'building';b.rv++;dirtyB(b.id);bump();return;}
+  if(o.op==='bmod'){const b=BM.get(o.bid);const old=JSON.stringify(bFoot(b));if(o.attr){o.patch=bPatchFor(b,o.attr);o.before=attrVal(b,o.attr);}applyPatch(b,o.patch);if(o.attr)o.after=attrVal(b,o.attr);if(JSON.stringify(bFoot(b))!==old)refoot(b,JSON.parse(old));b.rv++;dirtyB(b.id);rememberB(b,o.patch);bump();return;}
+  if(o.op==='bremove'){removeBuilding(BM.get(o.bid),who);bump();return;}
+  const c=cell(o.x,o.z),L=o.layer;
+  if(o.op==='place'){if(L==='g'){c.g=o.type;c.vg=o.v||0;}else{c.o=o.type;c.vo=o.v||0;}}
+  else if(o.op==='remove'){if(L==='g'){c.g='grass';c.vg=0;}else{c.o=null;c.vo=0;}}
+  else if(o.rel){const n=T[o.type].vars.length,b0=c['v'+L];c['v'+L]=(b0+o.rel)%n;o.before=b0;o.after=c['v'+L];S.mem.prefs[o.type]=o.after;}
+  else c['v'+L]=o.v;
+  c.by[L]=who;dirtyCell(o.x,o.z);bump();
+}
+function attrVal(b,a){return a==='roofMat'?b.mats.roof:a==='wall'?b.mats.wall:a==='roof'?b.roof:a==='h'?b.h:a==='size'?b.w+'x'+b.d:a==='door'?(b.door?b.door.side:null):null;}
+function bFoot(b){return{x:b.x,z:b.z,w:b.w,d:b.d,door:b.door?Object.assign({},b.door):null};}
+function refoot(b,old){for(let z=old.z;z<old.z+old.d;z++)for(let x=old.x;x<old.x+old.w;x++){if(inb(x,z)&&cell(x,z).b===b.id){cell(x,z).b=null;dirtyCell(x,z);}}
+  bCells(b).forEach(([x,z])=>{cell(x,z).b=b.id;dirtyCell(x,z);});}
+function removeBuilding(b,who){if(!b)return;bCells(b).forEach(([x,z])=>{if(inb(x,z)&&cell(x,z).b===b.id){cell(x,z).b=null;dirtyCell(x,z);}});
+  S.buildings=S.buildings.filter(x=>x!==b);BM.delete(b.id);S.removedB.push({id:b.id,name:b.name,t:S.tick,by:who});if(S.removedB.length>50)S.removedB.shift();
+  if(S.sel===b.id)S.sel=null;dirtyB(b.id);log(who,'bremoved',{id:b.id});}
+function applyPatch(b,p){Object.keys(p).forEach(k=>{if(k==='mats')b.mats=Object.assign({},b.mats,p.mats);else if(k==='door')b.door=Object.assign({},p.door);else b[k]=p[k];});}
+function rememberB(b,p){const pr=S.mem.bprefs[b.type]=S.mem.bprefs[b.type]||{};if(p.roof)pr.roof=p.roof;if(p.h)pr.h=p.h;if(p.mats&&p.mats.roof)pr.roofMat=p.mats.roof;if(p.mats&&p.mats.wall)pr.wallMat=p.mats.wall;}
+/* 건물 수정 검증: 크기·출입구가 바뀌면 새 발자국·출입구·다른 건물 출입을 다시 확인 */
+function validPatch(b,p){
+  const t=BT[b.type];const nb=Object.assign({},b,{mats:Object.assign({},b.mats)});applyPatch(nb,p);
+  if(!t.roofs.includes(nb.roof))return{ok:false,why:'이 유형에 없는 지붕 형태'};if(!t.H.includes(nb.h))return{ok:false,why:'허용되지 않는 높이'};
+  if(!t.W.includes(nb.w)||!t.D.includes(nb.d))return{ok:false,why:'허용되지 않는 크기'};
+  if(nb.mats.roof&&!t.roofMat.includes(nb.mats.roof))return{ok:false,why:'이 유형에 없는 지붕 재료'};if(t.wallMat&&!t.wallMat.includes(nb.mats.wall))return{ok:false,why:'이 유형에 없는 벽 재료'};
+  if(t.door&&nb.door&&nb.door.at+t.door>sideLen(nb.w,nb.d,nb.door.side))nb.door.at=Math.max(0,Math.floor((sideLen(nb.w,nb.d,nb.door.side)-t.door)/2));
+  const changed=nb.x!==b.x||nb.z!==b.z||nb.w!==b.w||nb.d!==b.d||JSON.stringify(nb.door)!==JSON.stringify(b.door);
+  if(!changed)return{ok:true,nb};
+  const vg=vClone();bCells(b).forEach(([x,z])=>{const c=vg[idx(x,z)];c.b=null;c.closed=false;c.pav=false;});doorCells(b).forEach(([x,z])=>{if(inb(x,z))vg[idx(x,z)].door=false;});
+  S.buildings.forEach(o=>{if(o!==b)doorCells(o).forEach(([x,z])=>{if(inb(x,z))vg[idx(x,z)].door=true;});});
+  for(const[x,z]of bCells(nb)){if(!inb(x,z))return{ok:false,why:'땅 밖'};const c=cell(x,z);if(c.b&&c.b!==b.id)return{ok:false,why:'다른 건물 자리'};
+    if(!(c.b===b.id)){if(c.keep)return{ok:false,why:'보존 구역'};if(c.g!=='grass'||c.o)return{ok:false,why:c.g==='water'?'연못 위':c.g==='path'?'길 위':'물건이 있는 칸'};}
+    else if(c.o&&BT[b.type].closed)return{ok:false,why:'안에 물건이 있음'};}
+  vg.forEach(c=>{});const r=bFitsLoose(vg,nb);if(!r.ok)return r;
+  return{ok:true,nb};
+}
+function bFitsLoose(vg,nb){
+  for(let zz=nb.z-1;zz<=nb.z+nb.d;zz++)for(let xx=nb.x-1;xx<=nb.x+nb.w;xx++){if(!inb(xx,zz)||(xx>=nb.x&&xx<nb.x+nb.w&&zz>=nb.z&&zz<nb.z+nb.d))continue;const c=vg[idx(xx,zz)];if(c.b&&c.b!==nb.id)return{ok:false,why:'다른 건물과 붙음'};}
+  const dc=doorCells(nb);for(const[a,b]of dc){if(!inb(a,b))return{ok:false,why:'출입구가 땅 밖'};const c=vg[idx(a,b)];if(c.g==='water'||(c.o&&T[c.o].block)||c.b)return{ok:false,why:'출입구 앞이 막힘'};}
+  const tmp=[];bCells(nb).forEach(([x,z])=>{const c=vg[idx(x,z)];tmp.push([c,c.pclosed]);if(BT[nb.type].closed)c.pclosed=true;});
+  const seen=reachSet(vg);tmp.forEach(([c,v])=>c.pclosed=v);
+  for(const[a,b]of dc)if(!seen.has(idx(a,b)))return{ok:false,why:'출입구에 닿는 길이 없음'};
+  for(let i=0;i<vg.length;i++)if(vg[i].door&&!seen.has(i))return{ok:false,why:'다른 건물 출입을 막음'};
+  return{ok:true};
+}
+const STABLE_SKIP=new Set(['사용자가 먼저 바꾼 칸','보존 구역','보존·사용자 칸','실행 전에 보존 지정됨','사용자가 먼저 바꾼 건물','건물이 이미 없음','이미 된 단계','앞 단계가 안 됨','취소된 공사','공사 중지된 건물']);
+const resultBlocks=o=>o.op==='place'&&((o.layer==='g'&&o.type==='water')||(o.layer==='o'&&!!T[o.type].block));
+const standOK=o=>o.op==='place'&&!resultBlocks(o);
+function workCells(o,avoid){
+  if(o.bid){const b=BM.get(o.bid);if(b)return bWorkCells(b,avoid);}
+  const s=new Set();for(const[a,b]of DIR8){const x=o.x+a,z=o.z+b;if(walkable(x,z)&&idx(x,z)!==avoid)s.add(idx(x,z));}
+  if(standOK(o)&&walkable(o.x,o.z)&&idx(o.x,o.z)!==avoid)s.add(idx(o.x,o.z));return s;}
+function bfsPath(sx,sz,goals,avoid){
+  const st=idx(sx,sz);if(goals.has(st))return[];
+  const prev=new Map([[st,-1]]),q=[st];
+  for(let h=0;h<q.length;h++){const i=q[h],x=i%N,z=(i/N)|0;
+    for(const[a,b]of DIR4){const nx=x+a,nz=z+b;if(!walkable(nx,nz))continue;const j=idx(nx,nz);if(j===avoid||prev.has(j))continue;prev.set(j,i);
+      if(goals.has(j)){const path=[j];let k=i;while(k!==st){path.unshift(k);k=prev.get(k);}return path;}q.push(j);}}
+  return null;
+}
+function moveTo(r,x,z){r.face=Math.atan2(x-r.x,-(z-r.z));r.x=x;r.z=z;}
+function faceTo(r,o){const b=o.bid?BM.get(o.bid):null;const tx=b?b.x+(b.w-1)/2:o.x,tz=b?b.z+(b.d-1)/2:o.z;if(tx!==r.x||tz!==r.z)r.face=Math.atan2(tx-r.x,-(tz-r.z));}
+function askYield(id,avoid,requester){
+  const r=S.res[id],rq=S.res[requester];if(r.yieldTo)return;
+  if(r.q.length&&!(r.blocked>0)&&!(rq.blocked>6))return;
+  for(const[a,b]of DIR8){const x=r.x+a,z=r.z+b;if(!walkable(x,z))continue;const j=idx(x,z);if(avoid.has(j)||(x===rq.x&&z===rq.z))continue;r.yieldTo=[x,z];log(id,'yield-ask',{by:requester});return;}
+}
+function unstick(id){const r=S.res[id],ot=S.res[OTHER[id]];let best=null,bd=999;
+  for(let z=0;z<N;z++)for(let x=0;x<N;x++){if(!walkable(x,z)||(x===ot.x&&z===ot.z))continue;const d=Math.abs(x-r.x)+Math.abs(z-r.z);if(d<bd){bd=d;best=[x,z];}}
+  if(!best)return;r.x=best[0];r.z=best[1];r.px=r.x;r.pz=r.z;log(id,'unstick',{x:r.x,z:r.z});}
+let mainCache={ver:-1,set:null};
+function mainRegion(){if(mainCache.ver===S.ver&&mainCache.set)return mainCache.set;const seen=new Set(),q=[];for(let x=0;x<N;x++)if(walkable(x,0)){seen.add(idx(x,0));q.push(idx(x,0));}
+  for(let h=0;h<q.length;h++){const i=q[h],x=i%N,z=(i/N)|0;for(const[a,b]of DIR4){const nx=x+a,nz=z+b;if(!walkable(nx,nz))continue;const j=idx(nx,nz);if(!seen.has(j)){seen.add(j);q.push(j);}}}
+  mainCache={ver:S.ver,set:seen};return seen;}
+function rescue(id){const r=S.res[id],ot=S.res[OTHER[id]],main=mainRegion();let best=null,bd=999;
+  main.forEach(i=>{const x=i%N,z=(i/N)|0;if(x===ot.x&&z===ot.z)return;const d=Math.abs(x-r.x)+Math.abs(z-r.z);if(d<bd){bd=d;best=[x,z];}});
+  if(!best)return false;log(id,'rescue',{from:[r.x,r.z],to:best});S.stats.rescues=(S.stats.rescues||0)+1;r.x=best[0];r.z=best[1];r.px=r.x;r.pz=r.z;r.blocked=0;return true;}
+function step(id){
+  const r=S.res[id],ot=S.res[OTHER[id]];r.px=r.x;r.pz=r.z;
+  if(r.animT>0&&--r.animT===0)r.anim='idle';
+  if(!walkable(r.x,r.z)){unstick(id);return;}
+  if(r.wait>0){r.wait--;return;}
+  if(r.yieldTo){const[yx,yz]=r.yieldTo;r.yieldTo=null;if(walkable(yx,yz)&&!(yx===ot.x&&yz===ot.z)){moveTo(r,yx,yz);r.anim='walk';r.animT=1;log(id,'yield',{x:yx,z:yz});return;}}
+  const o=r.q[0];if(!o)return;
+  if(!mainRegion().has(idx(r.x,r.z))&&rescue(id))return;
+  const pre=checkOp(o);if(pre&&(STABLE_SKIP.has(pre.reason)||pre.status==='cancelled')){finish(id,pre.status,pre.reason);return;}
+  const oi=idx(ot.x,ot.z);
+  if(!o.bid&&o.x===ot.x&&o.z===ot.z&&resultBlocks(o)){r.blocked++;askYield(OTHER[id],new Set([idx(o.x,o.z)]),id);if(r.blocked>WAIT_FAIL)finish(id,'failed','주민이 그 칸에서 비키지 못함');return;}
+  if(o.op==='bstage'&&o.stage===1){const b=BM.get(o.bid);if(b&&BT[b.type].closed&&bCells(b).some(([x,z])=>x===ot.x&&z===ot.z)){r.blocked++;askYield(OTHER[id],new Set(bCells(b).map(([x,z])=>idx(x,z))),id);if(r.blocked>WAIT_FAIL)finish(id,'failed','주민이 자리에서 비키지 못함');return;}}
+  const goals=workCells(o,oi);
+  if(goals.has(idx(r.x,r.z))){perform(id,o);return;}
+  const path=bfsPath(r.x,r.z,goals,oi);
+  if(path&&path.length){const j=path[0];moveTo(r,j%N,(j/N)|0);r.blocked=0;r.anim='walk';r.animT=1;return;}
+  r.blocked++;
+  const p2=bfsPath(r.x,r.z,workCells(o,-1),-1);
+  if(p2){askYield(OTHER[id],new Set(p2),id);if(r.blocked>WAIT_FAIL)finish(id,'failed','주민끼리 길이 막힘');}
+  else if(r.blocked>3)finish(id,'failed','닿을 수 있는 칸이 없음');
+}
+function perform(id,o){
+  const r=S.res[id],v=checkOp(o);if(v){finish(id,v.status,v.reason);return;}
+  if(id==='kan'&&!o.measured&&((o.op==='bstage'&&o.stage===1)||/-0$/.test(o.oid||''))){o.measured=true;r.anim='measure';r.animT=3;r.wait=2;faceTo(r,o);log(id,'measure',{x:o.x,z:o.z});return;}
+  if(o.op==='bmod'||o.op==='bremove')o.before=JSON.parse(JSON.stringify(BM.get(o.bid)));
+  applyOp(o,id);faceTo(r,o);r.anim=(id==='mori'&&o.op==='place'&&T[o.type]&&T[o.type].nature)?'plant':'work';r.animT=3;r.wait=o.op==='bstage'?2:1;finish(id,'done',null);
+}
+function opLog(id,o,status,reason){const d={oid:o.oid||null,pid:o.pid||null,cmd:o.cmd||null,op:o.op,x:o.x,z:o.z,status,reason:reason||null,auto:!!o.auto};
+  if(o.bid){d.bid=o.bid;if(o.stage)d.stage=o.stage;if(o.patch)d.patch=o.patch;if(o.attr)d.attr=o.attr;}else{d.L=o.layer;d.type=o.type;d.v=o.rel?undefined:o.v;if(o.rel)d.rel=o.rel;}
+  if(o.before!==undefined){d.before=o.before;d.after=o.after;}
+  log(id,'op',d);}
+function finish(id,status,reason){
+  const r=S.res[id],o=r.q.shift();r.blocked=0;opLog(id,o,status,reason);
+  if(o.auto&&status==='done')note(`모리가 혼자 ${nearWater(o.x,o.z)?'물가에':'나무 곁에'} ${jo(nm(o.type),'을/를')} 심었어요`);
+  if(o.pid){const pj=projectOf(o.pid);if(pj&&pj.status==='building'){pj.c[status]++;if(status!=='done')pj.issues.push(`${o.bid?(BM.get(o.bid)||{name:o.bid}).name+' '+(o.stage?o.stage+'단계':o.op==='bremove'?'철거':'수정'):`(${o.x},${o.z}) ${nm(o.type)}`} ${STATUS_KO[status]} — ${reason}`);
+    if(o.op==='bstage'&&status!=='done'){dropRestOfBuilding(o,pj,reason);}
+    updateCmdProgress(pj);settle(pj);}}
+  bump();
+}
+function dropRestOfBuilding(o,pj,reason){
+  IDS.forEach(id=>{const q=S.res[id].q,keep=[];q.forEach(x=>{if(x.op==='bstage'&&x.bid===o.bid&&x.pid===pj.pid){pj.c.skipped++;pj.issues.push(`${(BM.get(o.bid)||{name:o.bid}).name} ${x.stage}단계 건너뜀 — 앞 단계 안 됨`);opLog(id,x,'skipped','앞 단계가 안 됨');}else keep.push(x);});S.res[id].q=keep;});
+  const b=BM.get(o.bid);if(b&&b.stage===0)removeBuilding(b,'sys');else if(b){b.status='halted';b.rv++;dirtyB(b.id);}
+}
+function updateCmdProgress(pj){const n=pj.c.done+pj.c.skipped+pj.c.failed+pj.c.cancelled;cmdOfProject(pj.pid).forEach(c=>{c.reason=`공사 ${n}/${pj.total}`;touchMsg(msgById(c.mid));});}
+function settle(pj){
+  const n=pj.c.done+pj.c.skipped+pj.c.failed+pj.c.cancelled;if(n<pj.total||pj.status!=='building')return;
+  pj.status=pj.c.cancelled?'cancelled':pj.c.done===pj.total?'complete':'partial';pj.hash=gridHash();pj.end=S.tick;
+  log('sys','project',{pid:pj.pid,status:pj.status,c:pj.c});remember(`${PJ_KO[pj.status]}: ${pj.summary}`);
+  cmdOfProject(pj.pid).forEach(c=>setStatus(c,pj.status==='cancelled'?'cancelled':'done',pj.status==='complete'?null:pj.status==='partial'?`부분 완성 — 건너뜀 ${pj.c.skipped}·실패 ${pj.c.failed}`:`공사 중지 — 완료 ${pj.c.done}·취소 ${pj.c.cancelled}`));
+  const major=['rest','garden','house','workshop'].includes(pj.kind);
+  if(pj.status==='complete'){
+    if(major){note('완성');confetti();log('sys','confetti',pj.pid);post('mori','둘러볼래? 고칠 데 있으면 말해줘.');S.sugPending=true;}
+    else note(`${pj.summary} · 반영 완료`);
+  }else if(pj.status==='partial'){
+    note(`${major?'부분 완성':pj.summary+' 일부 반영'} · 완료 ${pj.c.done} · 건너뜀 ${pj.c.skipped}${pj.c.failed?' · 실패 '+pj.c.failed:''}`,{issues:pj.issues.slice(0,6)});
+    if(major){post('kan',`${pj.c.skipped+pj.c.failed}건은 짓지 않았습니다. 사유는 위에 남겼습니다.`);S.sugPending=true;}
+  }else note(`공사 중지 · 완료 ${pj.c.done} · 취소 ${pj.c.cancelled}${pj.c.skipped?' · 건너뜀 '+pj.c.skipped:''}`);
+}
+/* 중지: 대기열을 거치지 않고 즉시. 진행 중 공사의 남은 작업은 '취소'로 집계하고 큐에서 제거 — 다시 살아나지 않음 */
+function stopAll(src){
+  let pjs=S.projects.filter(p=>p.status==='building');
+  const pendingBuild=S.script.filter(s=>s.call==='build');let killed=0;
+  pendingBuild.forEach(s=>{const c=s.arg.cmd?cmdById(s.arg.cmd):null;if(c&&c.status==='running')setStatus(c,'cancelled','공사 시작 전에 중지');killed++;log('sys','build-skipped',{cmd:s.arg.cmd||null,why:'시작 전 중지',ops:s.arg.ops.length});});
+  S.script=S.script.filter(s=>s.call!=='build');
+  if(!pjs.length&&!killed)return{st:'rejected',why:'진행 중인 공사가 없음'};
+  let n=0;
+  pjs.forEach(pj=>{IDS.forEach(id=>{const r=S.res[id],keep=[];r.q.forEach(o=>{if(o.pid===pj.pid){pj.c.cancelled++;n++;opLog(id,o,'cancelled','사용자 중지');}else keep.push(o);});r.q=keep;r.blocked=0;});
+    pj.bids.forEach(bid=>{const b=BM.get(bid);if(!b)return;if(b.stage===0)removeBuilding(b,'sys');else if(b.stage<4){b.status='halted';b.rv++;dirtyB(b.id);}});
+    settle(pj);});
+  log('me','stop',{projects:pjs.map(p=>p.pid),cancelledOps:n,pendingBuilds:killed});bump();
+  return{st:'done',why:`공사 ${pjs.length}건 중지 · 남은 작업 ${n}건 취소${killed?` · 시작 전 공사 ${killed}건 취소`:''}`};
+}
+function idleMove(id){
+  const r=S.res[id],ot=S.res[OTHER[id]];if(r.q.length)return;
+  if(id==='mori'){const c=[];for(const[a,b]of DIR4){const x=r.x+a,z=r.z+b;if(walkable(x,z)&&!(x===ot.x&&z===ot.z))c.push({x,z,s:natureN(x,z)+rnd()*.9});}
+    if(c.length){c.sort((p,q)=>q.s-p.s);moveTo(r,c[0].x,c[0].z);r.anim='walk';r.animT=1;}}
+  else{const m=MID();const tx=r.x<m-1?r.x+1:r.x>m+1?r.x-1:r.x;if(tx!==r.x&&walkable(tx,r.z)&&!(tx===ot.x&&r.z===ot.z)){moveTo(r,tx,r.z);r.anim='walk';r.animT=1;}else r.face=0;}
+}
+function autonomy(){
+  if(!S.mem.autoOn||S.mem.autonomy>=AUTO_MAX||!S.projects.some(p=>p.c.done>0&&['rest','garden','house','workshop'].includes(p.kind)))return;
+  const res=reserved(),doors=doorSet(),cand=[];
+  for(let z=0;z<N;z++)for(let x=0;x<N;x++)if(freeCell(x,z,res,doors)&&natureN(x,z)>0)cand.push({x,z,n:natureN(x,z)});
+  if(!cand.length)return;cand.sort((a,b)=>b.n-a.n||idx(a.x,a.z)-idx(b.x,b.z));
+  const pk=cand[Math.floor(rnd()*Math.min(3,cand.length))];
+  const type=(nearWater(pk.x,pk.z)&&!banned('reed'))?'reed':['flower','bush'].find(t=>!banned(t));if(!type)return;
+  S.mem.autonomy++;
+  S.res.mori.q.push({op:'place',x:pk.x,z:pk.z,layer:'o',type,v:Math.floor(rnd()*T[type].vars.length),auto:true,created:S.tick,oid:'auto-'+S.mem.autonomy});
+  log('mori','autonomy',{x:pk.x,z:pk.z,type});bump();
+}
+function trySuggest(order){
+  if(S.suggestion||S.compare||S.draft)return false;
+  for(const id of order){const s=brain.suggest(id,worldView());if(s&&!S.mem.declined.includes(s.sig)){S.suggestion={id:++S.seq,who:id,sig:s.sig,text:s.text,ops:s.ops};
+    S.mem.suggested[s.sig]=(S.mem.suggested[s.sig]||0)+1;post(id,s.text,{sug:S.suggestion.id,acts:[['sug:yes','그렇게 해줘'],['sug:no','아니, 그대로']]});log(id,'suggest',s.sig);bump();return true;}}
+  return false;
+}
+function acceptSug(cmd){const s=S.suggestion;if(!s)return{st:'rejected',why:'답할 제안이 없음'};S.suggestion=null;markSug(s,'sug:yes');
+  remember(`제안 수락: ${s.sig}`);const pj=build({ops:s.ops.map(o=>Object.assign({},o,{owner:s.who})),kind:'suggestion',summary:'제안 반영',cmd:cmd?cmd.id:null});bump();return{st:'running',why:'제안 반영 중',pid:pj&&pj.pid};}
+function declineSug(){const s=S.suggestion;if(!s)return{st:'rejected',why:'답할 제안이 없음'};S.suggestion=null;markSug(s,'sug:no');S.mem.declined.push(s.sig);
+  post(s.who,s.who==='kan'?'알겠습니다. 같은 제안은 다시 하지 않겠습니다.':'응, 그대로 둘게.');remember(`제안 거절: ${s.sig}`);bump();return{st:'done'};}
+function markSug(s,act){const m=S.chat.find(x=>x.sug===s.id);if(m){m.used=act;touchMsg(m);}}
+
+/* ================= 8. 사용자 편집·되돌리기 ================= */
+const PAL=['flower','bush','reed','tree','bench','lamp','path','water'];
+const BPAL=['pavilion','house','workshop'];
+let tool='view',pal='flower',toast=null;
+const ui={bspec:{type:'house',w:2,d:2,h:1,roof:'gable',mats:{roof:'slate',wall:'plaster',floor:'oak'},side:'S'},hover:null,pend:null,ghostOK:null,guideOff:false};
+const snapCell=c=>JSON.parse(JSON.stringify(c));
+function snapTouch(cells,bids){return{cells:cells.map(i=>[i,snapCell(S.grid[i])]),b:bids.map(id=>[id,BM.get(id)?JSON.parse(JSON.stringify(BM.get(id))):null])};}
+function sameTouch(a){return a.cells.every(([i,c])=>JSON.stringify(S.grid[i])===JSON.stringify(c))&&a.b.every(([id,b])=>JSON.stringify(BM.get(id)||null)===JSON.stringify(b));}
+function restoreTouch(a){a.cells.forEach(([i,c])=>{S.grid[i]=JSON.parse(JSON.stringify(c));dirtyCell(i%N,(i/N)|0);});
+  a.b.forEach(([id,b])=>{const cur=BM.get(id);if(b){const nb=JSON.parse(JSON.stringify(b));if(cur)Object.assign(cur,nb);else{S.buildings.push(nb);}}else if(cur){S.buildings=S.buildings.filter(x=>x!==cur);}dirtyB(id);});rebuildBM();}
+function pushUndo(kind,label,before,touchCells,touchB,pref){const after=snapTouch(touchCells,touchB);S.undo.push({kind,label,before,after,pref,t:S.tick});if(S.undo.length>UNDO_MAX)S.undo.shift();}
+function topLayer(c){if(c.o)return'o';if(c.g!=='grass')return'g';return null;}
+function userAct(x,z,bid){
+  if(!inb(x,z)&&!bid)return;
+  if(tool==='view'){S.sel=bid||(inb(x,z)?cell(x,z).b:null)||null;bump();renderBPanel();return;}
+  const c=inb(x,z)?cell(x,z):null;const b=bid?BM.get(bid):(c&&c.b?BM.get(c.b):null);
+  if(tool==='build'&&BPAL.includes(pal))return userBuild(x,z);
+  if(b&&tool==='remove'&&!(c&&c.o))return userRemoveB(b);
+  if(b&&tool==='keep')return userKeepB(b);
+  if(b&&tool==='modify'&&!(c&&c.o)){S.sel=b.id;renderBPanel();flash('고칠 항목을 패널에서 고르세요');return;}
+  if(!c)return;
+  const i=idx(x,z);const before=snapTouch([i],[]);let L=null,type=null;const byBefore=JSON.parse(JSON.stringify(c.by));let prefInfo=null;
+  if(tool==='build'){
+    type=pal;L=T[pal].L;
+    if(c.b){const bb=BM.get(c.b);if(BT[bb.type].closed)return flash(`${bb.name} 안에는 놓을 수 없어요`);if(L==='g')return flash('정자 마루 위에는 바닥을 깔 수 없어요');if(!T[pal].seat&&pal!=='lamp')return flash('정자 안에는 자리·등만 둘 수 있어요');}
+    if(L==='o'&&c.g==='water')return flash('연못 위에는 놓을 수 없어요');
+    if(L==='g'&&pal==='water'&&c.o)return flash(`${jo(nm(c.o),'을/를')} 먼저 치워주세요`);
+    if(L==='g'&&c.g===pal)return flash('이미 같은 바닥이에요');
+    if(L==='o'&&c.o===pal)return flash('이미 있어요');
+    if((L==='o'&&T[pal].block||pal==='water')&&doorSet().has(i))return flash('건물 출입구 앞은 막을 수 없어요');
+    if(L==='g'){c.g=pal;c.vg=0;}else{c.o=pal;c.vo=0;}
+  }else if(tool==='remove'){
+    L=topLayer(c);if(!L)return flash('치울 게 없어요');type=typeAt(c,L);
+    if(L==='g'){c.g='grass';c.vg=0;}else{c.o=null;c.vo=0;}
+  }else if(tool==='modify'){
+    L=topLayer(c);if(!L)return flash('고칠 게 없어요');type=typeAt(c,L);const n=T[type].vars.length;if(n<2)return flash(`${jo(nm(type),'은/는')} 바꿀 모양이 없어요`);
+    prefInfo={type,had:Object.prototype.hasOwnProperty.call(S.mem.prefs,type),v:S.mem.prefs[type]};
+    c['v'+L]=(c['v'+L]+1)%n;S.mem.prefs[type]=c['v'+L];
+  }else if(tool==='keep'){c.keep=!c.keep;c.keepT=c.keep?S.tick:null;}
+  if(tool!=='keep'){c.by[L]='me';c.ut=S.tick;}
+  const label=tool==='keep'?`보존 구역 ${c.keep?'지정':'해제'} (${x},${z})`:tool==='build'?`${nm(type)} 놓음 (${x},${z})`:tool==='remove'?`${nm(type)} 치움 (${x},${z}) · 이번만`:`${nm(type)} → ${vn(type,c['v'+L])}`;
+  pushUndo(tool,label,before,[i],[],prefInfo);
+  dirtyCell(x,z);bump();
+  remember('직접 편집: '+label,tool==='remove'?{act:'remove',type,scope:'once'}:{act:tool,type});
+  log('me',tool==='build'?'place':tool,{x,z,type,L,keep:c.keep});
+  const acts=[['undo','되돌리기']];if(tool==='remove'&&!banned(type))acts.unshift(['ban:'+type,'앞으로도 빼기']);
+  showToast(label,acts);react(tool,type,x,z,byBefore[L]);saveSoon();
+}
+/* 건물 직접 배치·수정·이동·철거: 미리 검사하고, 크기·출입구·위치 변경은 미리보기 후 '적용'으로 확정 */
+function specFromUI(){const s=ui.bspec,t=BT[s.type];const w=t.W.includes(s.w)?s.w:t.W[0],d=t.D.includes(s.d)?s.d:t.D[0];
+  const door=t.door?{side:s.side,at:Math.max(0,Math.floor((sideLen(w,d,s.side)-t.door)/2))}:null;
+  return{type:s.type,w,d,h:t.H.includes(s.h)?s.h:t.H[0],roof:t.roofs.includes(s.roof)?s.roof:t.roofs[0],mats:{roof:t.roofMat.includes(s.mats.roof)?s.mats.roof:t.roofMat[0],wall:t.wallMat?(t.wallMat.includes(s.mats.wall)?s.mats.wall:t.wallMat[0]):undefined,floor:t.floorMat[0]},door};}
+function ghostAt(x,z){const sp=specFromUI();const x0=x-Math.floor((sp.w-1)/2),z0=z-Math.floor((sp.d-1)/2);const vg=vClone();const r=bFits(vg,sp,x0,z0);return{sp,x:x0,z:z0,ok:r.ok,why:r.why};}
+function userBuild(x,z){
+  const g=ghostAt(x,z);if(!g.ok){flash(`여기는 안 돼요 — ${g.why}`);log('me','bplace-refused',{x:g.x,z:g.z,why:g.why});return;}
+  const cells=[];for(let zz=g.z;zz<g.z+g.sp.d;zz++)for(let xx=g.x;xx<g.x+g.sp.w;xx++)cells.push(idx(xx,zz));
+  const nextId='B'+(S.bseq+1);const before=snapTouch(cells,[nextId]);
+  const b=newBuilding({x:g.x,z:g.z,spec:g.sp},'me',null);b.stage=4;b.status='built';b.ut=S.tick;b.name=nameFor(b);
+  pushUndo('bplace',`${b.name} 지음`,before,cells,[b.id],null);S.sel=b.id;
+  remember(`직접 지음: ${b.name} (${b.x},${b.z}) ${b.w}×${b.d}`,{act:'bplace',type:b.type});log('me','bplace',{id:b.id,type:b.type,x:b.x,z:b.z,w:b.w,d:b.d});
+  dirtyB(b.id);bump();showToast(`${b.name}을 지었어요`,[['undo','되돌리기']]);renderBPanel();saveSoon();
+  if(S.tick-S.lastReact>=4){S.lastReact=S.tick;post(b.type==='workshop'?'mori':'kan',b.type==='workshop'?'오, 작업실이다. 옆에 장작 쌓아두면 좋겠다.':'출입구 앞은 비워두겠습니다.');}
+}
+function userEditB(b,patch,label){
+  const v=validPatch(b,patch);if(!v.ok){flash(`바꿀 수 없어요 — ${v.why}`);log('me','bmod-refused',{id:b.id,why:v.why});return false;}
+  const old=bFoot(b);const cells=new Set(bCells(b).map(([x,z])=>idx(x,z)));bCells(v.nb).forEach(([x,z])=>cells.add(idx(x,z)));const cl=[...cells];
+  const before=snapTouch(cl,[b.id]);applyPatch(b,patch);if(JSON.stringify(bFoot(b))!==JSON.stringify(old))refoot(b,old);b.ut=S.tick;b.rv++;rememberB(b,patch);
+  pushUndo('bmod',`${b.name} ${label}`,before,cl,[b.id],null);dirtyB(b.id);bump();
+  remember(`직접 수정: ${b.name} ${label}`,{act:'bmod',type:b.type});log('me','bmod',{id:b.id,patch});
+  showToast(`${b.name} ${label}`,[['undo','되돌리기']]);renderBPanel();saveSoon();
+  if(patch.mats&&patch.mats.roof&&S.tick-S.lastReact>=4){S.lastReact=S.tick;post('kan',`지붕은 ${MATS.roof[patch.mats.roof][0]}. 다음 ${BT[b.type].name}도 이걸로 하겠습니다.`);}
+  return true;
+}
+function userRemoveB(b){const cl=bCells(b).map(([x,z])=>idx(x,z));const before=snapTouch(cl,[b.id]);const name=b.name;
+  removeBuilding(b,'me');pushUndo('bremove',`${name} 철거`,before,cl,[b.id],null);cl.forEach(i=>{S.grid[i].ut=S.tick;});
+  remember(`직접 철거: ${name} · 이번만`,{act:'remove',type:'b:'+b.type,scope:'once'});log('me','bremove',{id:b.id});
+  bump();showToast(`${name} 철거 · 이번만`,[['undo','되돌리기']]);renderBPanel();saveSoon();
+  if(S.tick-S.lastReact>=4){S.lastReact=S.tick;post(b.owner==='mori'?'mori':'kan',b.owner==='mori'?'아… 알겠어. 자리는 비워둘게.':'확인했습니다. 이번만 철거로 기록합니다.');}}
+function userKeepB(b){const before=snapTouch([],[b.id]);b.keep=!b.keep;b.keepT=b.keep?S.tick:null;b.rv++;pushUndo('bkeep',`${b.name} 보존 ${b.keep?'지정':'해제'}`,before,[],[b.id],null);
+  log('me','bkeep',{id:b.id,keep:b.keep});dirtyB(b.id);bump();showToast(`${b.name} 보존 ${b.keep?'지정':'해제'}`,[['undo','되돌리기']]);renderBPanel();saveSoon();
+  if(b.keep&&!S.keepTold){S.keepTold=true;post('kan','보존한 건물과 칸은 계획에서도, 자율 조경에서도 건드리지 않겠습니다.');}}
+function react(kind,type,x,z,byBefore){
+  if(kind==='keep'){if(!S.keepTold){S.keepTold=true;post('kan','보존 구역은 계획에서도, 자율 조경에서도 건드리지 않겠습니다.');}return;}
+  if(S.tick-S.lastReact<4)return;S.lastReact=S.tick;
+  if(kind==='build'){if(T[type].nature)post('mori',['거기 '+nm(type)+' 좋다.','오, 잘 어울려.','나도 옆에 하나 두고 싶네.'][S.mem.history.length%3]);if(['bench','lamp'].includes(type))trySuggest(['kan']);}
+  else if(kind==='remove'){if(byBefore==='mori')post('mori','응, 치웠구나. 그 칸은 비워둘게.');else if(byBefore==='kan')post('kan','확인했습니다. 이번만 철거로 기록합니다.');}
+  else if(kind==='modify'){if(T[type].nature)post('mori','모양이 바뀌니 분위기가 다르네.');else post('kan','다음에도 이 모양으로 맞추겠습니다.');}
+}
+function undo(){
+  const u=S.undo.pop();if(!u){note('되돌릴 직접 편집이 없어요');return{st:'rejected',why:'되돌릴 직접 편집이 없음'};}
+  if(!sameTouch(u.after)){note(`'${u.label}' 뒤에 그 자리가 바뀌어서 되돌리지 않았어요`);log('me','undo-refused',{label:u.label});showToast('되돌리기 거부 — 그 뒤에 바뀐 자리',null);bump();return{st:'rejected',why:'그 뒤에 바뀐 자리라 되돌리지 않음'};}
+  restoreTouch(u.before);if(u.pref){if(u.pref.had)S.mem.prefs[u.pref.type]=u.pref.v;else delete S.mem.prefs[u.pref.type];}
+  if(S.sel&&!BM.get(S.sel))S.sel=null;bump();log('me','undo',{label:u.label});remember(`되돌리기: ${u.label}`);
+  note(`되돌렸어요 · ${u.label}`);showToast('되돌렸어요',null);renderBPanel();saveSoon();return{st:'done'};
+}
+function ownerOf(x,z,L){const b=cell(x,z).by[L];if(b==='mori'||b==='kan')return b;const t=typeAt(cell(x,z),L);return t&&T[t].nature?'mori':'kan';}
+function removeReq(type,scope,cmd){
+  const all=cellsOf(type),L=T[type].L;
+  if(!all.length){post('mori',`${jo(nm(type),'은/는')} 지금 없어.`);return{st:'rejected',why:`${nm(type)} 없음`};}
+  const cs=all.filter(([x,z])=>!cell(x,z).keep),kept=all.length-cs.length;
+  if(!cs.length){post('kan',`${nm(type)} ${all.length}개가 모두 보존 구역 안이라 그대로 두었습니다.`);return{st:'rejected',why:'모두 보존 구역'};}
+  const ops=cs.map(([x,z])=>({op:'remove',x,z,layer:L,type,owner:ownerOf(x,z,L)}));
+  remember(`철거 요청(${scope==='ban'?'앞으로 빼기 후':'이번만'}): ${nm(type)} ${cs.length}개`,{act:'remove',type,scope:scope==='ban'?'ban':'once'});
+  const pj=build({ops,kind:'remove',summary:`${nm(type)} 철거`,cmd:cmd?cmd.id:null});
+  const lead=ops.some(o=>o.owner==='kan')?'kan':'mori',k=kept?` 보존 구역의 ${kept}개는 남깁니다.`:'';
+  post(lead,lead==='kan'?`${nm(type)} ${cs.length}개 철거하겠습니다.${scope==='once'?' 이번만으로 기록합니다.':''}${k}`:`${jo(nm(type),'을/를')} 치울게.${scope==='once'?' 이번만으로 기억할게.':''}${k}`,
+    scope==='once'&&!banned(type)?{acts:[['ban:'+type,'앞으로도 빼기']]}:null);
+  return{st:'running',why:`철거 0/${pj.total}`,pid:pj.pid};
+}
+function ban(type,src){
+  const key=type.startsWith('b:')?type:type;const label=type.startsWith('b:')?BT[type.slice(2)].name:nm(type);
+  if(S.mem.bans[key]){post('kan',`${jo(label,'은/는')} 이미 빼기로 돼 있습니다.`);return{st:'rejected',why:'이미 빼기로 됨'};}
+  S.mem.bans[key]={t:S.tick,src};remember(`앞으로 빼기: ${label}`,{act:'ban',type:key});log('me','ban',key);bump();
+  const left=type.startsWith('b:')?S.buildings.filter(b=>b.type===type.slice(2)).length:cellsOf(type).length;
+  post('kan',`${jo(label,'은/는')} 앞으로 계획과 자율 조경에서 빼겠습니다. 지금 있는 ${left?left+'개는 그대로 둡니다':'것은 없습니다'}.`,left&&!type.startsWith('b:')?{acts:[['removeAll:'+type,'지금 있는 것도 치워줘']]}:null);
+  return{st:'done'};
+}
+function unban(type){if(!S.mem.bans[type])return{st:'rejected',why:'빼기 목록에 없음'};delete S.mem.bans[type];remember(`빼기 해제: ${type}`,{act:'unban',type});log('me','unban',type);post('kan','다시 계획에 쓸 수 있습니다.');bump();return{st:'done'};}
+function modifyReq(type,cmd){
+  const all=cellsOf(type),L=T[type].L,n=T[type].vars.length;
+  if(!all.length){post('kan',`${jo(nm(type),'이/가')} 아직 없습니다.`);return{st:'rejected',why:`${nm(type)} 없음`};}
+  if(n<2){post('mori',`${jo(nm(type),'은/는')} 바꿀 모양이 없어.`);return{st:'rejected',why:'바꿀 모양이 없음'};}
+  const cs=all.filter(([x,z])=>!cell(x,z).keep);if(!cs.length){post('kan','모두 보존 구역 안이라 그대로 두었습니다.');return{st:'rejected',why:'모두 보존 구역'};}
+  remember(`모양 변경 요청: ${nm(type)} 다음 모양`,{act:'modify',type});
+  const ops=cs.map(([x,z])=>({op:'modify',x,z,layer:L,type,rel:1,owner:ownerOf(x,z,L)}));
+  const pj=build({ops,kind:'modify',summary:`${nm(type)} 다음 모양`,cmd:cmd?cmd.id:null});
+  const lead=ops.some(o=>o.owner==='kan')?'kan':'mori';
+  post(lead,lead==='kan'?`${nm(type)}, 차례가 오면 지금 모양에서 한 단계 바꾸겠습니다.`:`${nm(type)}, 내 차례에 지금 모양에서 한 단계 바꿔볼게.`);
+  return{st:'running',why:`수정 0/${pj.total}`,pid:pj.pid};
+}
+/* 건물 대상 찾기: 선택한 건물이 우선. 선택이 없고 해당 유형이 한 채면 그 건물, 여러 채면 선택을 요청(아무것도 바꾸지 않음) */
+function targetB(type){
+  const sel=S.sel?BM.get(S.sel):null;const tn=type&&type!=='any'?BT[type].name:'건물';
+  if(sel&&(!type||type==='any'||sel.type===type))return{b:sel};
+  if(sel&&type&&type!=='any'&&sel.type!==type)return{err:`선택한 건물은 ${sel.name}(${BT[sel.type].name})이에요. ${jo(tn,'을/를')} 눌러 선택하거나 선택을 바꿔주세요`,ask:true};
+  const cands=S.buildings.filter(b=>!type||type==='any'||b.type===type);
+  if(!cands.length)return{err:`${jo(tn,'이/가')} 아직 없어요`};
+  if(cands.length===1)return{b:cands[0]};
+  return{err:`${tn}이 ${cands.length}채예요(${cands.map(b=>b.name).join(', ')}). 월드에서 고칠 건물을 눌러 선택해 주세요`,ask:true};
+}
+function cycle(arr,v){const i=arr.indexOf(v);return arr[(i+1)%arr.length];}
+function bPatchFor(b,attr){const t=BT[b.type];
+  if(attr==='roofMat')return{mats:{roof:cycle(t.roofMat,b.mats.roof)}};
+  if(attr==='roof')return{roof:cycle(t.roofs,b.roof)};
+  if(attr==='wall'){if(!t.wallMat)return null;return{mats:{wall:cycle(t.wallMat,b.mats.wall)}};}
+  if(attr==='h')return{h:cycle(t.H,b.h)};
+  if(attr==='size'){const opts=[];t.W.forEach(w=>t.D.forEach(d=>opts.push([w,d])));const i=opts.findIndex(([w,d])=>w===b.w&&d===b.d);const[w,d]=opts[(i+1)%opts.length];return{w,d};}
+  if(attr==='door'){if(!t.door)return null;const side=cycle(SIDES,b.door.side);return{door:{side,at:Math.max(0,Math.floor((sideLen(b.w,b.d,side)-t.door)/2))}};}
+  return null;}
+function patchLabel(b,p){if(p.mats&&p.mats.roof)return`지붕 재료 → ${MATS.roof[p.mats.roof][0]}`;if(p.roof)return`지붕 형태 → ${ROOFF[p.roof]}`;if(p.mats&&p.mats.wall)return`벽 → ${MATS.wall[p.mats.wall][0]}`;
+  if(p.h)return`높이 → ${BT[b.type].hName[p.h]}`;if(p.w)return`크기 → ${p.w}×${p.d}`;if(p.door)return`출입구 → ${SIDE_KO[p.door.side]}`;return'수정';}
+function bModReq(type,attr,cmd){
+  const tg=targetB(type);if(tg.err){post('kan',tg.err+'.');return{st:'rejected',why:tg.err};}
+  const b=tg.b;const patch=bPatchFor(b,attr);if(!patch){post('kan',`${b.name}에는 그 항목이 없습니다.`);return{st:'rejected',why:'그 건물 유형에 없는 항목'};}
+  if(b.keep){post('kan',`${b.name}은 보존 중이라 바꾸지 않았습니다.`);return{st:'rejected',why:'보존된 건물'};}
+  const v=validPatch(b,patch);if(!v.ok){post('kan',`${b.name}: ${v.why}라 바꿀 수 없습니다.`);return{st:'rejected',why:v.why};}
+  const queuedSame=IDS.some(id=>S.res[id].q.some(o=>o.op==='bmod'&&o.bid===b.id));
+  if(b.status!=='built'&&b.status!=='halted'){applyPatch(b,patch);b.rv++;dirtyB(b.id);rememberB(b,patch);log('kan','spec-change',{id:b.id,patch});post('kan',`${b.name}은 공사 중이라 사양을 바로 바꿔 남은 공사에 반영합니다(이미 지은 부분도 같은 재료로).`);bump();return{st:'done',why:'공사 중 사양 변경'};}
+  const owner=b.owner==='mori'?'mori':'kan';const AK={roofMat:'지붕 재료',roof:'지붕 형태',wall:'벽',h:'높이',size:'크기',door:'출입구'}[attr];
+  const pj=build({ops:[{op:'bmod',bid:b.id,attr,x:b.x,z:b.z,owner}],kind:'bmodify',summary:`${b.name} ${AK} 다음 것`,cmd:cmd?cmd.id:null});
+  post(owner,owner==='kan'?`${b.name} ${AK}, ${queuedSame?'앞선 변경 다음에 ':''}그때 상태에서 한 단계 바꾸겠습니다.`:`${b.name} ${AK}, ${queuedSame?'앞에 거 끝나면 ':''}그때 모양에서 한 단계 바꿀게.`);
+  return{st:'running',why:`${b.name} 수정 대기`,pid:pj.pid};
+}
+function bRemoveReq(type,cmd){
+  const tg=targetB(type);if(tg.err){post('kan',tg.err+'.');return{st:'rejected',why:tg.err};}const b=tg.b;
+  if(b.keep){post('kan',`${b.name}은 보존 중이라 철거하지 않았습니다.`);return{st:'rejected',why:'보존된 건물'};}
+  let cancelled=0;IDS.forEach(id=>{const q=S.res[id].q,keep=[];q.forEach(o=>{if(o.bid===b.id&&o.op==='bstage'){const pj=projectOf(o.pid);if(pj){pj.c.cancelled++;pj.issues.push(`${b.name} ${o.stage}단계 취소 — 철거 요청으로 대체`);opLog(id,o,'cancelled','철거 요청으로 대체');settle(pj);updateCmdProgress(pj);}cancelled++;}else keep.push(o);});S.res[id].q=keep;});
+  const owner=b.owner==='mori'?'mori':'kan';
+  remember(`철거 요청(이번만): ${b.name}`,{act:'remove',type:'b:'+b.type,scope:'once'});
+  const pj=build({ops:[{op:'bremove',bid:b.id,x:b.x,z:b.z,owner}],kind:'bremove',summary:`${b.name} 철거`,cmd:cmd?cmd.id:null});
+  post(owner,`${b.name} 철거${cancelled?` — 남은 공사 ${cancelled}건은 취소하고`:''} 하겠습니다.`);
+  return{st:'running',why:'철거 대기',pid:pj.pid};
+}
+
+/* ================= 9. 명령 해석·실행 ================= */
+const NOUNS=[[/벤치|의자/,'bench'],[/그루터기/,'stump'],[/연못|물가/,'water'],[/갈대/,'reed'],[/나무/,'tree'],[/꽃/,'flower'],[/덤불|회양목|억새/,'bush'],[/석등|조명|가로등|등불|등/,'lamp'],[/길/,'path']];
+function nounOf(t){for(const[re,k]of NOUNS)if(re.test(t))return k;return null;}
+function bnounOf(t){if(/정자/.test(t))return'pavilion';if(/작업실|공방/.test(t))return'workshop';if(/집(?!중)/.test(t))return'house';if(/건물/.test(t))return'any';return null;}
+function attrOf(t){if(/지붕.*(모양|형태)|맞배|우진각|외쪽|모임/.test(t))return'roof';if(/지붕/.test(t))return'roofMat';if(/벽/.test(t))return'wall';if(/높|낮|층고|천장/.test(t))return'h';if(/크기|넓|크게|작게/.test(t))return'size';if(/문|출입구/.test(t))return'door';return null;}
+function planKind(t){if(/작업실|공방/.test(t))return'workshop';if(/집/.test(t))return'house';if(/쉬|휴식|쉼터|앉을|정자/.test(t))return'rest';if(/꽃밭|정원|화단|조경|심어|꽃/.test(t))return'garden';return null;}
+function exec(c){
+  const t=c.text,k=nounOf(t),bk=bnounOf(t),at=attrOf(t);
+  if(c.kind==='stop')return stopAll(c);
+  if(c.kind==='cancel'){const n=clearQueue();return n?{st:'done',why:`대기 ${n}건 취소`}:{st:'rejected',why:'대기 중인 요청이 없음'};}
+  if(c.kind==='review'){
+    if(S.compare){if(/조율|섞|둘 ?다|합쳐/.test(t)){pickBase('mix');return{st:'done'};}if(/모리/.test(t)){pickBase('mori');return{st:'done'};}if(/칸/.test(t)){pickBase('kan');return{st:'done'};}
+      if(/접|취소|그만/.test(t)){foldPlan();return{st:'done'};}return{st:'rejected',why:'비교 단계에서는 안을 골라주세요'};}
+    if(S.draft){if(/확정|짓자|이대로|시작/.test(t))return confirmDraft();if(/접/.test(t)){foldPlan();return{st:'done'};}
+      const key=bk&&bk!=='any'?bk:k;if(key&&/빼|없이|말고|끄|꺼/.test(t))return draftType(key,false)?{st:'done'}:{st:'rejected',why:`초안에 바꿀 ${key in T?nm(key):BT[key].name} 항목이 없음`};
+      if(key&&/넣|추가|살려|켜/.test(t))return draftType(key,true)?{st:'done'}:{st:'rejected',why:'초안에 다시 켤 항목이 없음'};
+      return{st:'rejected',why:'초안에서 무엇을 바꿀지 모르겠음'};}
+    if(/앞으로/.test(t)&&(k||bk))return ban(bk&&bk!=='any'?'b:'+bk:k,'chat');
+    return{st:'rejected',why:'검토 중인 계획이 없음'};
+  }
+  if(c.kind==='reply'){if(S.suggestion){if(/^(아니|괜찮|됐어|싫어)/.test(t))return declineSug();return acceptSug(c);}return{st:'rejected',why:'답할 제안이 없음'};}
+  if(c.kind==='plan'){
+    let kind=planKind(t);if(!kind){const last=S.mem.requests[S.mem.requests.length-1];kind=last?last.kind:'rest';}
+    if((kind==='house'||kind==='workshop'||(kind==='rest'&&/정자/.test(t)))&&bBanned(kind==='rest'?'pavilion':kind)){post('kan',`${BT[kind==='rest'?'pavilion':kind].name}은 빼기로 하셨습니다.`);return{st:'rejected',why:'빼기로 한 건물 유형'};}
+    return request(kind,t,c);
+  }
+  if(/되돌려|되돌리|실행 ?취소|방금 ?(거|것) ?취소/.test(t))return undo();
+  if((k||bk)&&/(다시|이제).*(써도|넣어도|써)|빼기 ?해제|금지 ?해제/.test(t))return unban(bk&&bk!=='any'?'b:'+bk:k);
+  if((k||bk)&&(/(앞으로|다음부터|이제|계속).*(쓰지|넣지|빼|말아|짓지)/.test(t)||/싫어|금지|쓰지 ?마/.test(t)))return ban(bk&&bk!=='any'?'b:'+bk:k,'chat');
+  if(/치워|철거|없애|빼줘|빼 줘|지워|부숴|허물/.test(t)){
+    if(bk&&!at)return bRemoveReq(bk,c);if(at==='roofMat'||at==='roof'){post('kan','지붕만 떼어내는 건 못 합니다. 안을 보려면 월드의 [지붕] 버튼으로 숨기세요.');return{st:'rejected',why:'지붕만 철거는 지원 안 함'};}
+    if(k)return removeReq(k,'once',c);post('kan','무엇을 치울지 이름으로 알려주세요. 예: 벤치 치워줘, 이 정자 철거해줘');return{st:'rejected',why:'대상을 모름'};}
+  if(/바꿔|변경|색|높여|낮춰|넓혀|돌려/.test(t)){
+    if(at)return bModReq(bk,at,c);
+    if(bk){post('kan','무엇을 바꿀지 알려주세요. 예: 이 집 지붕 바꿔줘, 작업실 벽 바꿔줘');return{st:'rejected',why:'바꿀 항목을 모름'};}
+    if(k)return modifyReq(k,c);post('kan','무엇을 바꿀지 알려주세요. 예: 지붕 색 바꿔줘');return{st:'rejected',why:'대상을 모름'};}
+  if(/안녕|반가|하이/.test(t)){post('mori','안녕. 오늘은 뭘 같이 만들까?');post('kan','반갑습니다. 요청을 주시면 안을 내겠습니다.');return{st:'done'};}
+  post('kan','지금은 만들기(쉬는 곳·집·작업실·꽃밭)·다듬기·바꾸기·치우기·되돌리기·중지를 알아듣습니다.');
+  return{st:'rejected',why:'알아듣지 못한 요청'};
+}
+function dispatch(act,mid){
+  const m=mid?S.chat.find(x=>x.id===+mid):null;const i=act.indexOf(':'),k=i<0?act:act.slice(0,i),arg=i<0?null:act.slice(i+1);
+  const asCmd=(text,fn)=>{const c={id:'C'+(++S.cmdSeq),text,src:'button',t:S.tick,status:'accepted',kind:'button',reason:null,pid:null};S.cmds.push(c);log('cmd','accepted',{id:c.id,text,kind:'button',src:'button'});
+    setStatus(c,'running');const r=fn(c)||{st:'done'};if(r.st==='running'){c.reason=r.why;if(r.pid)c.pid=r.pid;}else setStatus(c,r.st,r.why||null);return r;};
+  switch(k){
+    case'pick':asCmd(`[${arg} 안 선택]`,()=>pickBase(arg)?{st:'done'}:{st:'rejected',why:'비교가 끝남'});break;
+    case'tog':asCmd(`[항목 토글 ${arg}]`,()=>toggle(arg)?{st:'done'}:{st:'rejected',why:'초안 없음'});break;
+    case'confirm':asCmd('[확정하고 짓기]',()=>confirmDraft());break;
+    case'dcancel':asCmd('[계획 접기]',()=>foldPlan()?{st:'done'}:{st:'rejected',why:'접을 계획 없음'});break;
+    case'sug':asCmd(arg==='yes'?'[제안 수락]':'[제안 거절]',c=>arg==='yes'?acceptSug(c):declineSug());break;
+    case'ban':asCmd(`[앞으로 빼기 ${arg}]`,()=>ban(arg,'button'));if(m){m.used=act;touchMsg(m);}break;
+    case'removeAll':asCmd(`[지금 있는 ${arg} 치우기]`,c=>removeReq(arg,'ban',c));if(m){m.used=act;touchMsg(m);}break;
+    case'unban':asCmd(`[빼기 해제 ${arg}]`,()=>unban(arg));break;
+    case'auto':S.mem.autoOn=!S.mem.autoOn;remember(`자율 조경 ${S.mem.autoOn?'켬':'끔'}`);log('me','auto',S.mem.autoOn);bump();break;
+    case'undo':asCmd('[되돌리기]',()=>undo());break;
+    case'stop':asCmd('[공사 중지]',c=>stopAll(c));break;
+    case'clearq':asCmd('[대기 비우기]',()=>{const n=clearQueue();return n?{st:'done',why:`대기 ${n}건 취소`}:{st:'rejected',why:'대기 없음'};});break;
+    case'savenow':save();break;
+  }
+  chatDirty=true;renderHud();if(sheetKind)renderSheet();saveSoon();
+}
+function actValid(a,m){const i=a.indexOf(':'),k=i<0?a:a.slice(0,i),arg=i<0?null:a.slice(i+1);
+  if(k==='sug')return!!S.suggestion&&m&&m.sug===S.suggestion.id;if(k==='ban')return!S.mem.bans[arg];if(k==='removeAll')return cellsOf(arg).length>0;if(k==='undo')return S.undo.length>0;return true;}
+
+/* ================= 10. 채팅·카드·지도 그리기 ================= */
+const SVG_MORI=`<ellipse cx="60" cy="134" rx="30" ry="4" fill="#000" opacity=".08"/>
+<path d="M60 54 C45 54 39 72 35 93 L27 132 L93 132 L85 93 C81 72 75 54 60 54Z" fill="#5b7f5a"/>
+<path d="M58 74 L50 132 M64 74 L71 132" stroke="#4a6a49" stroke-width="1.6" fill="none" opacity=".7"/>
+<path d="M44 66 Q60 77 76 66 L74 74 Q60 83 46 74Z" fill="#b9782a"/><path d="M69 73 L75 98 L67 96Z" fill="#a66a22"/>
+<path d="M60 9 C40 13 30 31 32 49 C34 61 46 67 60 67 C74 67 86 61 88 49 C90 31 80 13 60 9Z" fill="#4f6f4e"/>
+<path d="M60 9 L66 0 L63 12Z" fill="#4f6f4e"/>
+<ellipse cx="60" cy="46" rx="19.5" ry="18.5" fill="#f1d6bd"/>
+<path d="M41 43 C44 31 52 28 60 29 C68 28 76 31 79 43 C72 37 66 38 60 35 C54 38 48 37 41 43Z" fill="#7a5638"/>
+<path d="M50 49 q3 -2.6 6 0" stroke="#2a2522" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M64 49 q3 -2.6 6 0" stroke="#2a2522" stroke-width="2" fill="none" stroke-linecap="round"/>
+<circle cx="47.5" cy="55" r="2.8" fill="#e3a093" opacity=".5"/><circle cx="72.5" cy="55" r="2.8" fill="#e3a093" opacity=".5"/>
+<path d="M57.5 57 q2.5 1.8 5 0" stroke="#8a4b3a" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+<path d="M65 2 q1 -2 4 -2" stroke="#3f5f3e" stroke-width="1.6" fill="none"/><path d="M68 0 q7 -3 10 2 q-6 3 -10 -2z" fill="#8bb07a"/>
+<g transform="translate(78 100)"><rect width="15" height="12" rx="3" fill="#97a09d"/><path d="M15 4 L24 -3" stroke="#97a09d" stroke-width="2.6" stroke-linecap="round"/><path d="M3 0 q4.5 -6 9 0" stroke="#7d8683" stroke-width="1.8" fill="none"/></g>
+<circle cx="79" cy="101" r="3.6" fill="#f1d6bd"/>`;
+const SVG_KAN=`<ellipse cx="60" cy="134" rx="30" ry="4" fill="#000" opacity=".08"/>
+<rect x="23" y="20" width="4" height="114" rx="2" fill="#b08a4e"/><g fill="#5a4634"><rect x="23" y="40" width="6" height="2"/><rect x="23" y="58" width="6" height="2"/><rect x="23" y="76" width="6" height="2"/><rect x="23" y="94" width="6" height="2"/></g>
+<path d="M35 77 L85 77 L87 132 L33 132Z" fill="#34508a"/><path d="M35 77 L85 77 L84 85 L36 85Z" fill="#2c4476"/>
+<path d="M54 77 L60 96 L66 77Z" fill="#ecebe6"/><line x1="60" y1="96" x2="60" y2="130" stroke="#2a3f6a" stroke-width="1.4"/>
+<circle cx="64" cy="105" r="1.5" fill="#b9782a"/><circle cx="64" cy="117" r="1.5" fill="#b9782a"/>
+<rect x="21" y="93" width="10" height="8" rx="3" fill="#f1d6bd"/>
+<path d="M37 72 L37 47 C37 35 46 29 60 29 C74 29 83 35 83 47 L83 72 L76 72 L76 49 L44 49 L44 72Z" fill="#262c3a"/>
+<rect x="42" y="35" width="36" height="38" rx="15" fill="#f1d6bd"/>
+<path d="M42 47 L78 47 L78 51 L42 51Z" fill="#262c3a"/>
+<rect x="31" y="22" width="58" height="6" rx="2" fill="#2b3f6b"/><rect x="40" y="13" width="40" height="11" rx="3" fill="#34508a"/>
+<rect x="45" y="54" width="12" height="9" rx="1.5" fill="none" stroke="#1d2433" stroke-width="1.7"/><rect x="63" y="54" width="12" height="9" rx="1.5" fill="none" stroke="#1d2433" stroke-width="1.7"/>
+<line x1="57" y1="58" x2="63" y2="58" stroke="#1d2433" stroke-width="1.5"/>
+<rect x="49.5" y="57" width="3" height="3.4" rx=".8" fill="#2a2522"/><rect x="67.5" y="57" width="3" height="3.4" rx=".8" fill="#2a2522"/>
+<path d="M55.5 68 h9" stroke="#8a4b3a" stroke-width="1.6" stroke-linecap="round"/>`;
+const AV={mori:`<svg viewBox="28 0 64 64">${SVG_MORI}</svg>`,kan:`<svg viewBox="28 6 64 64">${SVG_KAN}</svg>`};
+$('pMori').innerHTML=SVG_MORI;$('pKan').innerHTML=SVG_KAN;
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function groundCol(c){return c.g==='grass'?C2.grass:col(c.g,c.vg);}
+function planSvg(cells,bg){
+  const s=10,W=N*s;let h=`<svg class="plan" viewBox="-2 -2 ${W+4} ${W+11}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="계획도"><rect x="-2" y="-2" width="${W+4}" height="${W+4}" rx="3" fill="#a9a59a"/>`;
+  for(let z=0;z<N;z++)for(let x=0;x<N;x++){const X=x*s,Y=(N-1-z)*s;const c=bg?bg[idx(x,z)]:null;
+    h+=`<rect x="${X+.5}" y="${Y+.5}" width="${s-1}" height="${s-1}" rx="1" fill="${c?groundCol(c):C2.grass}" ${c&&c.g!=='grass'?'opacity=".55"':''}/>`;
+    if(c&&c.o)h+=`<circle cx="${X+s/2}" cy="${Y+s/2}" r="1.9" fill="#6b6f68" opacity=".45"/>`;
+    if(c&&c.keep)h+=`<rect x="${X+1}" y="${Y+1}" width="${s-2}" height="${s-2}" fill="none" stroke="#b9782a" stroke-width="1" stroke-dasharray="2 1.5"/>`;}
+  if(bg)S.buildings.forEach(b=>{h+=`<rect x="${b.x*s+.5}" y="${(N-b.z-b.d)*s+.5}" width="${b.w*s-1}" height="${b.d*s-1}" rx="1" fill="#6b6f68" opacity=".45"/>`;});
+  cells.filter(p=>p[2]==='g').forEach(([x,z,L,t,v])=>{h+=`<rect x="${x*s+.5}" y="${(N-1-z)*s+.5}" width="${s-1}" height="${s-1}" rx="1" fill="${col(t,v)}"/>`;});
+  cells.filter(p=>p[2]==='B').forEach(([x,z,L,t,v,w,bw,bd,side,rm])=>{const X=x*s+.5,Y=(N-z-bd)*s+.5,Wd=bw*s-1,Hd=bd*s-1;
+    h+=`<rect x="${X}" y="${Y}" width="${Wd}" height="${Hd}" rx="1.5" fill="${(MATS.roof[rm]||['','#555'])[1]}" stroke="${PEOPLE[w]?PEOPLE[w].color:'#555'}" stroke-width="1.4"/>`;
+    if(side){const cx=X+Wd/2,cy=Y+Hd/2;const dx=side==='E'?Wd/2:side==='W'?-Wd/2:0,dy=side==='S'?Hd/2:side==='N'?-Hd/2:0;h+=`<circle cx="${cx+dx}" cy="${cy+dy}" r="2" fill="#fff"/>`;}});
+  cells.filter(p=>p[2]==='o').forEach(([x,z,L,t,v,w])=>{h+=`<circle cx="${x*s+s/2}" cy="${(N-1-z)*s+s/2}" r="2.8" fill="${col(t,v)}" stroke="${w?PEOPLE[w].color:'#555'}" stroke-width="1.1"/>`;});
+  h+=`<path d="M${W/2-5} ${W+8} L${W/2} ${W+3} L${W/2+5} ${W+8}Z" fill="#7d858a"/></svg>`;return h;
+}
+function kvHtml(m){return`<dl class="kv"><dt>빈 땅</dt><dd>${m.free}%</dd>${m.blds?`<dt>건물</dt><dd>${m.blds}채 · 출입 ${m.doorOK}/${m.blds} · 길 연결 ${m.doorLinked}/${m.blds}</dd>`:''}<dt>자리</dt><dd>${m.seats}개${m.seats?` · 지붕 ${m.roofS} · 물가 ${m.waterS} · 그늘 ${m.shadeS}`:''}</dd>
+<dt>입구→자리</dt><dd>${m.steps!=null?'평균 '+m.steps+'걸음':'–'}${m.seats&&m.linked<m.seats?` · 길 끊김 ${m.seats-m.linked}`:''}</dd><dt>입구 정면</dt><dd>${m.focal}</dd><dt>일감</dt><dd>칸 ${m.work.kan} · 모리 ${m.work.mori}</dd></dl>`;}
+function pcHtml(pc){return`<ul class="pc">${pc.p.map(x=>`<li class="p">${esc(x)}</li>`).join('')}${pc.c.map(x=>`<li class="c">${esc(x)}</li>`).join('')}</ul>`;}
+const OPTNAME={mori:'모리 안',kan:'칸 안',mix:'조율안'};
+function compareHtml(m){
+  const live=S.compare&&S.compare.id===m.cmpId,d=m.cmp;
+  const opt=k=>{const o=d.opts[k];return`<div class="opt ${k}"><div><b class="t">${OPTNAME[k]}</b></div>
+<div class="feats">${o.labels.map(([l,w])=>`<span style="color:${PEOPLE[w].color}">●</span> ${esc(l)}`).join('<br>')}</div>
+${planSvg(o.cells,live?S.grid:null)}${kvHtml(o.m)}${pcHtml(o.pc)}
+${k==='mix'&&o.ev.length?`<div><div class="feats">겹침 정리 ${o.ev.length}건</div><ul class="ev">${o.ev.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>`:''}
+<button class="btn ${k==='mix'?'pri':''}" data-act="pick:${k}" ${live?'':'disabled'}>이 안으로 다듬기</button></div>`;};
+  return`<div class="card"><h5>세 가지 안 비교 · ${esc(KIND_NAME[d.kind]||'')}</h5><p class="sub">${live?'바탕으로 삼을 안을 고르면 항목별로 다듬을 수 있어요':'검토가 끝난 비교'}</p><div class="cmp">${opt('mori')}${opt('kan')}${opt('mix')}</div></div>`;
+}
+const GROUP_ORDER=['building','seat','path','water','light','plant'],GROUP_KO={building:'건물',seat:'자리',path:'길',water:'물가',light:'조명',plant:'식재'};
+function draftHtml(m){
+  const d=S.draft&&S.draft.id===m.did?S.draft:null;
+  if(!d){const f=m.final;if(!f)return`<div class="note">검토하던 계획</div>`;if(f.cancelled)return`<div class="note">계획 검토를 접었어요</div>`;
+    return`<div class="card"><h5>확정한 계획</h5><p class="sub">${esc(f.summary)}</p><div class="draft"><div class="left">${planSvg(f.cells,null)}</div><div class="right">${kvHtml(f.m)}</div></div></div>`;}
+  const fs=[...d.feats].sort((a,b)=>GROUP_ORDER.indexOf(a.group)-GROUP_ORDER.indexOf(b.group));
+  return`<div class="card"><h5>다듬는 중 · 바탕 ${OPTNAME[d.base]}</h5><p class="sub">켜고 끄면 겹침 정리와 지표가 바로 다시 계산돼요</p>
+<div class="draft"><div class="left">${planSvg(cellsOfOps(d.res.ops),S.grid)}${kvHtml(d.res.m)}</div>
+<div class="right">${pcHtml(d.res.pc)}<div class="feat">${fs.map(f=>`<label><input type="checkbox" data-act="tog:${f.id}" ${d.on[f.id]?'checked':''}><i style="background:${PEOPLE[f.owner].color}"></i>${esc(f.label)}<small>${GROUP_KO[f.group]||''} · ${f.ops.length}작업</small></label>`).join('')}</div>
+${d.res.ev.length?`<ul class="ev">${d.res.ev.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''}
+<div class="acts"><button class="btn pri" data-act="confirm">확정하고 짓기 (${d.res.ops.length}작업)</button><button class="btn" data-act="dcancel">접기</button></div></div></div></div>`;
+}
+function actsHtml(m){if(!m.acts)return'';return`<div class="acts">${m.acts.map(([a,l])=>`<button class="btn${m.used===a?' used':''}" data-act="${a}" data-mid="${m.id}" ${(m.used||!actValid(a,m))?'disabled':''}>${esc(l)}</button>`).join('')}</div>`;}
+function cstHtml(c,suffix){if(!c)return'';const cls={rejected:'rej',running:'run',done:'ok',queued:'q',cancelled:''}[c.status]||'';
+  let t=`${c.id} · ${CMD_KO[c.status]}`;if(c.status==='queued'){const pos=S.cmdQ.indexOf(c.id);t+=pos>=0?` ${pos+1}번째`:'';}if(c.reason)t+=` — ${c.reason}`;if(suffix)t+=suffix;return`<span class="cst ${cls}">${esc(t)}</span>`;}
+function msgHtml(m){
+  if(m.cmpId)return compareHtml(m);
+  if(m.did)return draftHtml(m);
+  if(m.who==='note')return`<div class="note">${esc(m.text)}${m.issues&&m.issues.length?`<ul>${m.issues.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''}${actsHtml(m)}</div>`;
+  if(m.who==='me'){const c=m.cmd?cmdById(m.cmd):null;return`<div class="msg me"><div class="tx">${esc(m.text)}</div>${c?cstHtml(c):m.cmdFinal?cstHtml(Object.assign({},m.cmdFinal),' · 이력 정리됨'):m.cmd?`<span class="cst rej">${esc(m.cmd)} · 기록 없음</span>`:''}</div>`;}
+  const p=PEOPLE[m.who];
+  return`<div class="msg ${m.who}"><span class="av">${AV[m.who]}</span><div class="body"><div class="nm">${p.name}</div><div class="tx">${esc(m.text)}${actsHtml(m)}</div></div></div>`;
+}
+/* 채팅은 바뀐 메시지만 다시 그린다(v2는 매 틱 전체 innerHTML 재작성) */
+const chatEls=new Map();let renderStats={chatRenders:0,chatNodes:0};
+function renderChat(){
+  chatDirty=false;const el=$('log');const near=el.scrollHeight-el.scrollTop-el.clientHeight<80;let added=0;
+  const live=new Set(S.chat.map(m=>m.id));
+  for(const[id,r]of chatEls)if(!live.has(id)){r.el.remove();chatEls.delete(id);}
+  const tmp=document.createElement('div');
+  for(const m of S.chat){const r=chatEls.get(m.id);const rv=(m.rv||0)+(m.cmpId&&S.compare&&S.compare.id===m.cmpId?1e6:0);
+    if(r&&r.rv===rv)continue;tmp.innerHTML=msgHtml(m);const node=tmp.firstElementChild;renderStats.chatNodes++;
+    if(r){r.el.replaceWith(node);r.el=node;r.rv=rv;}else{el.appendChild(node);chatEls.set(m.id,{el:node,rv});added++;}}
+  renderStats.chatRenders++;
+  if(near||added)el.scrollTop=el.scrollHeight;
+  renderChips();renderTicker();renderQbar();
+}
+function resetChatDom(){chatEls.forEach(r=>r.el.remove());chatEls.clear();$('log').innerHTML='';}
+function renderChips(){
+  let c;
+  if(S.compare)c=['조율안으로 다듬자','모리 안으로','칸 안으로','접자'];
+  else if(S.draft)c=['이대로 짓자','연못 빼고','석등 빼고','접자'];
+  else if(S.suggestion)c=['응, 그렇게 해줘','아니, 그대로'];
+  else c=['쉬는 곳을 만들어줘','집 지어줘','작업실 지어줘','이 집 지붕 바꿔줘','꽃밭 만들어줘','공사 멈춰줘','되돌려줘'];
+  const h=c.map(x=>`<button>${x}</button>`).join('');if($('chips').innerHTML!==h)$('chips').innerHTML=h;
+}
+function renderQbar(){const q=S.cmdQ.length,run=S.cmds.filter(c=>c.status==='running').length;
+  const h=`<span>대기 <b>${q}</b>/${QMAX} · 실행 중 <b>${run}</b></span><span>보낸 만큼 각각 처리 · 대기 최대 ${QMAX} · 중지는 바로</span>${q?'<button data-act="clearq">대기 비우기</button>':''}`;
+  if($('qbar').innerHTML!==h)$('qbar').innerHTML=h;}
+function activity(id){const r=S.res[id],o=r.q[0];
+  if(!o)return id==='mori'?'물가를 거니는 중':'축을 살피는 중';
+  if(r.anim==='measure')return'재는 중';
+  if(o.op==='bstage'){const b=BM.get(o.bid);return`${b?b.name:'건물'} ${['','기초','뼈대','벽','지붕'][o.stage]} 짓는 중${r.q.length>1?` · ${r.q.length}건 남음`:''}`;}
+  if(o.op==='bmod'||o.op==='bremove'){const b=BM.get(o.bid);return`${b?b.name:'건물'} ${o.op==='bmod'?'손보는 중':'허무는 중'}`;}
+  const verb=o.op==='remove'?'치우는 중':o.op==='modify'?'손보는 중':o.type==='water'?'파는 중':o.layer==='g'?'까는 중':T[o.type].nature?'심는 중':'놓는 중';
+  return`${nm(o.type)} ${verb}${r.blocked>3?' · 길 막힘':''}${r.q.length>1?` · ${r.q.length}건 남음`:''}`;}
+let lastCast=['',''];
+function renderCast(){const a=activity('mori'),b=activity('kan');if(a!==lastCast[0]){$('stMori').textContent=a;lastCast[0]=a;}if(b!==lastCast[1]){$('stKan').textContent=b;lastCast[1]=b;}}
+let miniVer=-1;
+function renderMini(){if(miniVer===S.ver)return;miniVer=S.ver;const cv=$('miniC');if(cv.width!==N*4){cv.width=N*4;cv.height=N*4;}const g=cv.getContext('2d');
+  for(let z=0;z<N;z++)for(let x=0;x<N;x++){const c=cell(x,z),X=x*4,Y=(N-1-z)*4;g.fillStyle=groundCol(c);g.fillRect(X,Y,4,4);
+    if(c.b){const b=BM.get(c.b);g.fillStyle=b?(MATS.roof[b.mats.roof]||['','#555'])[1]:'#555';g.globalAlpha=b&&b.stage<4?.5:1;g.fillRect(X,Y,4,4);g.globalAlpha=1;}
+    else if(c.o){g.fillStyle=col(c.o,c.vo);g.fillRect(X+1,Y+1,2,2);}}
+  IDS.forEach(id=>{const r=S.res[id];g.fillStyle=PEOPLE[id].color;g.fillRect(r.x*4,(N-1-r.z)*4,4,4);});}
+function renderTicker(){const last=S.chat.filter(m=>!m.cmpId&&!m.did&&m.text&&m.who!=='me').slice(-2);
+  const h=last.map(m=>`<div>${m.who==='note'?'':`<b style="color:${PEOPLE[m.who].color}">${PEOPLE[m.who].name}</b>`}${esc(m.text)}</div>`).join('')||'<div>요청은 아래 입력창이나 채팅에서</div>';if($('ticker').innerHTML!==h)$('ticker').innerHTML=h;}
+function renderHud(){
+  const pjs=S.projects.filter(p=>p.status==='building');const pb=$('pbar');
+  if(pjs.length){const t=pjs.reduce((a,p)=>a+p.total,0),n=pjs.reduce((a,p)=>a+p.c.done+p.c.skipped+p.c.failed+p.c.cancelled,0),sk=pjs.reduce((a,p)=>a+p.c.skipped,0);
+    const h=`<span class="grow">${PJ_KO.building} ${pjs.length}건 · ${n}/${t}${sk?` · 건너뜀 ${sk}`:''}</span><button class="btn" data-act="stop">공사 중지</button>`;pb.className='bar on';if(pb.innerHTML!==h)pb.innerHTML=h;}
+  else pb.className='bar';
+  const t=$('toast');let h='';
+  if(toast&&performance.now()<toast.until)h=`<span class="grow">${esc(toast.text)}</span>${(toast.acts||[]).filter(([a])=>actValid(a,null)).map(([a,l])=>`<button class="btn" data-act="${a}">${esc(l)}</button>`).join('')}`;
+  else if(S.undo.length)h=`<span class="grow" style="color:var(--muted)">직접 편집 ${S.undo.length}개</span><button class="btn" data-act="undo">되돌리기</button>`;
+  t.className=h?'bar on':'bar';if(t.innerHTML!==h)t.innerHTML=h;
+  renderSpec();
+}
+function showToast(text,acts){toast={text,acts,until:performance.now()+6000};renderHud();}
+function flash(text){toast={text,acts:null,until:performance.now()+2500};renderHud();}
+function renderSave(){const el=$('saveSt');let t='',bad=false;
+  const tm=d=>d?d.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',second:'2-digit'}):'';
+  if(saveState.load==='corrupt'){t='저장본 손상 · 새로 시작';bad=true;}else if(saveState.load==='restored')t='복원됨';else if(saveState.load==='migrated')t='v2에서 가져옴';
+  else if(saveState.load==='v2corrupt'||saveState.load==='unsupported'){t='구버전 저장 못 가져옴';bad=true;}
+  if(saveState.err){t=(t?t+' · ':'')+saveState.err;bad=true;}else if(saveState.last)t=(t?t+' · ':'')+'저장 '+tm(saveState.last);
+  if(el.textContent!==t)el.textContent=t;el.className='save'+(bad?' bad':'');}
+/* 건물 패널 · 짓기 사양 */
+function bLabel(b){const t=BT[b.type];return`${t.name} ${b.w}×${b.d} · ${t.hName[b.h]} · ${ROOFF[b.roof]} ${MATS.roof[b.mats.roof][0]}${t.wallMat?` · ${MATS.wall[b.mats.wall][0]}`:''}${t.door?` · 문 ${SIDE_KO[b.door.side]}`:''}`;}
+function renderBPanel(){
+  const el=$('bpanel');const b=S.sel?BM.get(S.sel):null;
+  if(!b||mode!=='world'){el.className='bpanel';el.innerHTML='';return;}
+  const t=BT[b.type],pend=ui.pend&&ui.pend.bid===b.id?ui.pend:null;
+  const st=b.status==='built'?'':b.status==='halted'?' · 공사 중지됨':b.status==='planned'?' · 공사 예정':' · 공사 중';
+  let h=`<h6>${esc(b.name)}${b.keep?' · 보존':''}</h6><div class="meta">${b.id} · ${esc(bLabel(b))}${st}<br>${esc(t.use)} · (${b.x},${b.z})</div>`;
+  if(pend){h+=`<div class="row"><span>${esc(pend.label)} 미리 보기</span></div>${pend.ok?'':`<div class="why">${esc(pend.why)}</div>`}<div class="row"><button class="btn pri" data-b="apply" ${pend.ok?'':'disabled'}>적용</button><button class="btn" data-b="pcancel">취소</button></div>`;}
+  else{h+=`<div class="row"><button class="btn" data-b="focus">집중</button><button class="btn" data-b="roofMat">지붕재</button><button class="btn" data-b="roof">지붕 형태</button>${t.wallMat?'<button class="btn" data-b="wall">벽</button>':''}<button class="btn" data-b="h">높이</button></div>
+<div class="row"><button class="btn" data-b="size">크기…</button>${t.door?'<button class="btn" data-b="door">출입구…</button>':''}<button class="btn" data-b="move">옮기기…</button><button class="btn" data-b="keep">${b.keep?'보존 해제':'보존'}</button><button class="btn" data-b="remove">철거</button></div>`;
+    if(ui.moveFor===b.id)h+=`<div class="row"><span>새 자리를 누르세요</span><button class="btn" data-b="mcancel">그만</button></div>`;}
+  if(el.innerHTML!==h)el.innerHTML=h;el.className='bpanel on';
+}
+$('bpanel').addEventListener('click',e=>{const k=e.target.closest('[data-b]');if(!k||k.disabled)return;const a=k.dataset.b;const b=S.sel?BM.get(S.sel):null;if(!b)return;
+  if(a==='focus')camAct('focus');
+  else if(['roofMat','roof','wall','h'].includes(a)){const p=bPatchFor(b,a);if(p)userEditB(b,p,patchLabel(b,p));}
+  else if(a==='size'||a==='door'){const p=bPatchFor(b,a);const v=validPatch(b,p);ui.pend={bid:b.id,patch:p,label:patchLabel(b,p),ok:v.ok,why:v.why||'',nb:v.nb||Object.assign({},b,p)};if(R)R.preview(ui.pend);renderBPanel();}
+  else if(a==='apply'&&ui.pend){const p=ui.pend;ui.pend=null;if(R)R.preview(null);if(p.move)userMoveB(b,p.patch);else userEditB(b,p.patch,p.label);}
+  else if(a==='pcancel'){ui.pend=null;if(R)R.preview(null);renderBPanel();}
+  else if(a==='move'){ui.moveFor=b.id;renderBPanel();flash('옮길 자리를 누르세요 · 미리 보기 후 적용');}
+  else if(a==='mcancel'){ui.moveFor=null;renderBPanel();}
+  else if(a==='keep')userKeepB(b);else if(a==='remove')userRemoveB(b);});
+function moveTarget(x,z){const b=BM.get(ui.moveFor);if(!b)return;const nx=x-Math.floor((b.w-1)/2),nz=z-Math.floor((b.d-1)/2);const patch={x:nx,z:nz};const v=validPatch(b,patch);
+  ui.pend={bid:b.id,patch,move:true,label:`(${b.x},${b.z})→(${nx},${nz}) 옮기기`,ok:v.ok,why:v.why||'',nb:v.nb||Object.assign({},b,patch)};ui.moveFor=null;if(R)R.preview(ui.pend);renderBPanel();}
+function userMoveB(b,patch){userEditB(b,patch,`옮김 (${patch.x},${patch.z})`);}
+function renderSpec(){
+  const el=$('specbar');if(!(tool==='build'&&BPAL.includes(pal))){el.className='bar';return;}
+  const s=specFromUI(),t=BT[s.type];const g=ui.hover?ghostAt(ui.hover[0],ui.hover[1]):null;
+  const h=`<span class="grow"><b>${t.name}</b> ${s.w}×${s.d} · ${t.hName[s.h]} · ${ROOFF[s.roof]} ${MATS.roof[s.mats.roof][0]}${t.wallMat?' · '+MATS.wall[s.mats.wall][0]:''}${t.door?' · 문 '+SIDE_KO[s.door.side]:''}${g?(g.ok?' · 놓을 수 있음':` · <span class="why">${esc(g.why)}</span>`):''}</span>
+<button class="btn" data-s="size">크기</button><button class="btn" data-s="h">높이</button><button class="btn" data-s="roof">지붕</button><button class="btn" data-s="roofMat">지붕재</button>${t.wallMat?'<button class="btn" data-s="wall">벽</button>':''}${t.door?'<button class="btn" data-s="side">문</button>':''}`;
+  el.className='bar on';if(el.innerHTML!==h)el.innerHTML=h;}
+$('specbar').addEventListener('click',e=>{const k=e.target.closest('[data-s]');if(!k)return;const s=ui.bspec,t=BT[s.type],a=k.dataset.s;
+  if(a==='size'){const o=[];t.W.forEach(w=>t.D.forEach(d=>o.push([w,d])));const i=o.findIndex(([w,d])=>w===s.w&&d===s.d);[s.w,s.d]=o[(i+1)%o.length];}
+  else if(a==='h')s.h=cycle(t.H,t.H.includes(s.h)?s.h:t.H[0]);else if(a==='roof')s.roof=cycle(t.roofs,t.roofs.includes(s.roof)?s.roof:t.roofs[0]);
+  else if(a==='roofMat')s.mats.roof=cycle(t.roofMat,t.roofMat.includes(s.mats.roof)?s.mats.roof:t.roofMat[0]);else if(a==='wall')s.mats.wall=cycle(t.wallMat,t.wallMat.includes(s.mats.wall)?s.mats.wall:t.wallMat[0]);
+  else if(a==='side')s.side=cycle(SIDES,s.side);renderSpec();if(R)R.ghost(ui.hover);});
+let sheetKind=null;
+function openSheet(k){sheetKind=k;renderSheet();$('sheet').classList.add('on');}
+function renderSheet(){
+  const li=a=>a.length?'<ul>'+a.map(x=>`<li>${x}</li>`).join('')+'</ul>':'<p style="color:var(--muted)">아직 없음</p>';const m=S.mem;
+  if(sheetKind==='mem'){
+    $('sheetBox').innerHTML=`<button class="btn x" data-close="1">닫기</button><h3>이 마을의 기억</h3>
+<h4>합의</h4>${li(m.agreements.map(a=>esc(a.summary)))}
+<h4>건물</h4>${li(S.buildings.map(b=>`${esc(b.name)} — ${esc(bLabel(b))}${b.keep?' · 보존':''}`))}
+<h4>앞으로 빼기</h4>${li(Object.keys(m.bans).map(t=>`${esc(t.startsWith('b:')?BT[t.slice(2)].name:nm(t))} <button class="btn" data-act="unban:${t}">해제</button>`))}
+<h4>고른 모양·재료</h4>${li(Object.entries(m.prefs).map(([t,v])=>`${esc(nm(t))}: ${esc(vn(t,v))}`).concat(Object.entries(m.bprefs).map(([t,p])=>`${BT[t].name}: ${Object.entries(p).map(([k,v])=>k==='roofMat'?MATS.roof[v][0]:k==='wallMat'?MATS.wall[v][0]:k==='roof'?ROOFF[v]:k==='h'?BT[t].hName[v]:v).join(' · ')}`)))}
+<h4>보존 구역 · 사용자가 손댄 칸</h4><p>${S.grid.filter(c=>c.keep).length}칸 · ${S.grid.filter(c=>c.ut!=null).length}칸 · 보존 건물 ${S.buildings.filter(b=>b.keep).length}채</p>
+<h4>자율 조경</h4><p>${m.autonomy} / ${AUTO_MAX}회 · ${m.autoOn?'켜짐':'꺼짐'} <button class="btn" data-act="auto">${m.autoOn?'끄기':'켜기'}</button></p>
+<h4>요청 처리 규칙</h4><p>보낸 요청은 같은 문장이어도 각각 접수 · 대기 최대 ${QMAX}개(넘치면 사유와 함께 거절) · 같은 이벤트의 이중 전달·키 자동 반복·한글 조합 중 Enter는 제출로 보지 않음 · '바꿔줘' 같은 상대 변경은 실행되는 순간의 상태에서 한 단계씩 · 명령 이력은 ${CMD_KEEP}건을 넘으면 오래된 종결 명령부터 정리(활성 명령은 보존) · 중지와 대기 비우기는 바로 처리 · 계획 검토 중 들어온 만들기 요청은 검토가 끝나면 처리 · 확정한 공사는 진행 중인 공사 뒤에 이어 지음 · 공사 중인 건물의 철거 요청은 남은 공사를 취소하고 철거, 수정 요청은 사양을 바로 바꿈</p>
+<h4>최근 기록</h4>${li(m.history.slice(-12).reverse().map(h=>esc(h.text)))}
+<h4>저장</h4><p>${esc($('saveSt').textContent||'저장 전')} <button class="btn" data-act="savenow">지금 저장</button></p>
+<p style="color:var(--muted);font-size:12.5px;margin-top:4px">복원 대상: 월드 크기·격자·건물(ID·이름·규격·재료·단계·보존)·요청·합의·빼기·고른 재료·거절한 제안·명령 기록과 대기열·진행 중 작업 큐·검토 중 계획·채팅 최근 ${CHAT_KEEP}개·되돌리기 ${UNDO_MAX}개·주민 위치·난수·카메라 시점·지붕 보기·선택 건물. 복원 안 함: 열린 창·알림·화면 효과·배속(URL). 저장은 바뀐 뒤 ${SAVE_MIN_MS/1000}초 간격 이내로 모아서, 그리고 페이지를 떠날 때.</p>`;
+  }else{
+    $('sheetBox').innerHTML=`<button class="btn x" data-close="1">닫기</button><h3>상태 로그</h3><h4>요약</h4><pre>${esc(JSON.stringify(snapshot(),null,1))}</pre><h4>최근 이벤트 60개</h4><pre>${esc(S.log.slice(-60).map(l=>`t${l.t} ${l.who} ${l.ev} ${typeof l.d==='object'?JSON.stringify(l.d):l.d}`).join('\n'))}</pre>`;
+  }
+}
+$('sheet').addEventListener('click',e=>{if(e.target.id==='sheet'||e.target.dataset.close){$('sheet').classList.remove('on');sheetKind=null;return;}const b=e.target.closest('[data-act]');if(b)dispatch(b.dataset.act,b.dataset.mid);});
+$('btnMem').onclick=()=>openSheet('mem');$('btnLog').onclick=()=>openSheet('log');
+let resetArm=0;
+$('btnReset').onclick=()=>{const b=$('btnReset');if(performance.now()<resetArm){resetArm=0;b.textContent='초기화';b.classList.remove('warn');reset();return;}
+  resetArm=performance.now()+3000;b.textContent='v3 저장까지 지울까요?';b.classList.add('warn');setTimeout(()=>{if(performance.now()>=resetArm){b.textContent='초기화';b.classList.remove('warn');}},3100);};
+function showBanner(kind,text){$('banner').className='banner on'+(kind==='bad'?' bad':'');$('bannerText').textContent=text;}
+$('bannerX').onclick=()=>{$('banner').className='banner';};
+$('log').addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b||b.disabled)return;if(b.tagName==='INPUT')e.preventDefault();dispatch(b.dataset.act,b.dataset.mid);});
+$('qbar').addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(b)dispatch(b.dataset.act);});
+$('vWorld').addEventListener('click',e=>{const b=e.target.closest('.bar [data-act]');if(b)dispatch(b.dataset.act);});
+$('chips').addEventListener('click',e=>{const b=e.target.closest('button');if(b)submit(b.textContent,'chip',e);});
+function wireInput(inp,btn){
+  const send=(src,e)=>{const v=inp.value;if(!v.trim())return;if(isDupEvent(e,v.trim(),src))return;inp.value='';submit(v,src,null);};
+  btn.addEventListener('click',e=>send('click',e));
+  inp.addEventListener('keydown',e=>{if(e.key!=='Enter')return;
+    if(e.isComposing||e.keyCode===229){S.stats.imeIgnored++;log('ui','ime-enter-ignored',null);return;}
+    if(e.repeat){e.preventDefault();S.stats.keyRepeat++;log('ui','key-repeat-ignored',null);return;}
+    e.preventDefault();send('enter',e);});
+}
+wireInput($('inp'),$('send'));wireInput($('winp'),$('wsend'));
+document.addEventListener('keydown',e=>{const a=document.activeElement;const typing=a&&(a.tagName==='INPUT'||a.tagName==='TEXTAREA');
+  if((e.ctrlKey||e.metaKey)&&e.key==='z'&&!typing){e.preventDefault();undo();return;}
+  if(mode!=='world'||typing||e.ctrlKey||e.metaKey||e.altKey)return;
+  const k=e.key;const m={q:'yawL',Q:'yawL',e:'yawR',E:'yawR',t:'top',T:'top',r:'roof',R:'roof',f:'focus',F:'focus',h:'home',H:'home','0':'fit','+':'zIn','=':'zIn','-':'zOut',PageUp:'pitchU',PageDown:'pitchD'};
+  if(m[k]){camAct(m[k]);e.preventDefault();return;}
+  const pan={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]}[k];if(pan){camPanKey(pan[0],pan[1]);e.preventDefault();}
+  if(k==='Escape'){ui.moveFor=null;ui.pend=null;if(R)R.preview(null);setTool('view');renderBPanel();}
+});
+let mode='chat';
+function setMode(m){mode=m;$('vChat').classList.toggle('on',m==='chat');$('vWorld').classList.toggle('on',m==='world');
+  $('tabChat').setAttribute('aria-pressed',m==='chat');$('tabWorld').setAttribute('aria-pressed',m==='world');log('ui','mode',m);
+  if(m==='world'){if(R)R.resize();renderTicker();renderHud();renderBPanel();if(flatMode)renderFlat();}else{chatDirty=true;}}
+$('tabChat').onclick=()=>setMode('chat');$('tabWorld').onclick=()=>setMode('world');$('mini').onclick=()=>setMode('world');$('ticker').onclick=()=>setMode('chat');
+$('tools').addEventListener('click',e=>{const b=e.target.closest('button');if(b)setTool(b.dataset.t);});
+function setTool(t){tool=t;ui.moveFor=null;document.querySelectorAll('#tools button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.t===t));$('palette').classList.toggle('on',t==='build');if(R){R.setEdit(t!=='view');R.ghost(null);}renderHud();}
+function renderPalette(){$('palette').innerHTML=PAL.map(k=>`<button data-k="${k}" aria-pressed="${k===pal}"><i style="background:${col(k,0)}"></i>${nm(k)}</button>`).join('')+'<span class="sep"></span>'+
+  BPAL.map(k=>`<button data-k="${k}" aria-pressed="${k===pal}"><i style="background:${k==='pavilion'?'#4b5058':k==='house'?'#e4dfd3':'#9c5a44'}"></i>${BT[k].name}</button>`).join('');}
+$('palette').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;pal=b.dataset.k;if(BPAL.includes(pal)&&ui.bspec.type!==pal){const t=BT[pal];ui.bspec={type:pal,w:t.W[Math.min(1,t.W.length-1)],d:t.D[0],h:t.H[0],roof:t.roofs[0],mats:{roof:t.roofMat[0],wall:t.wallMat?t.wallMat[0]:undefined,floor:t.floorMat[0]},side:'S'};}renderPalette();renderHud();});
+const GUIDE='드래그 회전 · 우클릭/Shift+드래그 이동 · 휠 확대 · 더블클릭 건물 집중 · 키 Q/E 회전 · 방향키 이동 · T 탑뷰 · R 지붕 · 터치: 한 손가락 회전, 두 손가락 확대·이동';
+$('guideText').textContent=GUIDE;$('guideX').onclick=()=>{$('guide').style.display='none';ui.guideOff=true;};
+
+/* ================= 11. 3D · 카메라 ================= */
+let R=null;const dirty=new Set(),dirtyBs=new Set();
+function dirtyCell(x,z){dirty.add(idx(x,z));for(const[a,b]of DIR8)if(inb(x+a,z+b))dirty.add(idx(x+a,z+b));needRender=true;}
+function dirtyB(id){dirtyBs.add(id);needRender=true;}
+let needRender=true;
+function h01(i,k){let h=(i*374761393+k*668265263)|0;h=Math.imul(h^(h>>>13),1274126177);h^=h>>>16;return(h>>>0)/4294967296;}
+function seatFace(x,z){for(const[a,b]of DIR4)if(inb(x+a,z+b)&&cell(x+a,z+b).g==='water')return Math.atan2(a,-b);if(cell(x,z).b)return 0;return Math.atan2(-(x-MID()),z-MID());}
+const CAM={yaw:-.55,pitch:.62,dist:20,tx:0,tz:0,top:false,auto:true};const CUR=Object.assign({},CAM);
+let fitDist=20;
+function camAct(a){
+  const c=CAM;
+  if(a==='yawL')c.yaw-=Math.PI/4;else if(a==='yawR')c.yaw+=Math.PI/4;
+  else if(a==='pitchU')c.pitch=clamp(c.pitch+.14,.3,1.35);else if(a==='pitchD')c.pitch=clamp(c.pitch-.14,.3,1.35);
+  else if(a==='zIn'){c.dist=clamp(c.dist*.8,4,fitDist*1.7);c.auto=false;}else if(a==='zOut'){c.dist=clamp(c.dist*1.25,4,fitDist*1.7);c.auto=false;}
+  else if(a==='top')c.top=!c.top;
+  else if(a==='roof'){S.roofMode=S.roofMode==='show'?'ghost':S.roofMode==='ghost'?'hide':'show';if(R)R.roofMode();flash(`지붕 ${{show:'보임',ghost:'반투명',hide:'숨김'}[S.roofMode]}`);}
+  else if(a==='fit'){c.tx=0;c.tz=0;c.dist=fitDist;c.auto=true;}
+  else if(a==='home'){c.yaw=-.55;c.pitch=.62;c.tx=0;c.tz=0;c.dist=fitDist;c.top=false;c.auto=true;}
+  else if(a==='focus'){const b=S.sel?BM.get(S.sel):null;if(!b){flash('먼저 건물을 눌러 선택하세요');return false;}c.tx=b.x+(b.w-1)/2-MID();c.tz=MID()-(b.z+(b.d-1)/2);c.dist=clamp(Math.max(b.w,b.d)*2.6+4,5,fitDist);c.auto=false;}
+  syncCamButtons();S.view=Object.assign({},CAM);needRender=true;log('ui','cam',a);return true;
+}
+function camPanKey(dx,dy){const s=CAM.dist*.06;const r=[Math.cos(CAM.yaw),-Math.sin(CAM.yaw)],f=[-Math.sin(CAM.yaw),-Math.cos(CAM.yaw)];CAM.tx+=r[0]*dx*s-f[0]*dy*s;CAM.tz+=r[1]*dx*s-f[1]*dy*s;clampTarget();S.view=Object.assign({},CAM);needRender=true;}
+function clampTarget(){const L=N/2+1;CAM.tx=clamp(CAM.tx,-L,L);CAM.tz=clamp(CAM.tz,-L,L);}
+function syncCamButtons(){$('btnTop').setAttribute('aria-pressed',CAM.top);$('btnTop').textContent=CAM.top?'조감':'탑';$('btnRoof').textContent={show:'지붕',ghost:'반투명',hide:'숨김'}[S.roofMode]||'지붕';$('btnRoof').setAttribute('aria-pressed',S.roofMode!=='show');}
+$('nav').addEventListener('click',e=>{const b=e.target.closest('[data-c]');if(b)camAct(b.dataset.c);});
+function init3D(){
+  const stage=$('stage');
+  if(!window.THREE){fallback('three.js를 불러오지 못했어요');return;}
+  let renderer;try{renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});}catch(e){fallback('이 기기에서 3D를 켤 수 없어요');return;}
+  const dark=matchMedia('(prefers-color-scheme: dark)').matches,reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+  renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1));renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+  stage.appendChild(renderer.domElement);
+  const scene=new THREE.Scene();scene.fog=new THREE.Fog(dark?0x1a2125:0xe4e8e3,N*2.4,N*5.5);
+  const pcam=new THREE.PerspectiveCamera(32,1,.1,400),ocam=new THREE.OrthographicCamera(-10,10,10,-10,.1,400);
+  scene.add(new THREE.HemisphereLight(dark?0x6a7a99:0xdfe7ee,dark?0x2a2620:0x5f5544,dark?.42:.62));
+  const sun=new THREE.DirectionalLight(dark?0xa9b8d8:0xffe1b5,dark?.42:.95);sun.position.set(-N*.6,N*.9,N*.6);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);
+  const sh=N/2+2;Object.assign(sun.shadow.camera,{left:-sh,right:sh,top:sh,bottom:-sh,near:1,far:N*4});sun.shadow.bias=-.0008;scene.add(sun);
+  const fill=new THREE.DirectionalLight(0xc9d6ea,dark?.14:.26);fill.position.set(N*.6,N*.4,-N*.5);scene.add(fill);
+  const MC={},GC={};
+  const mat=(c,o)=>{const k=c+JSON.stringify(o||{});return MC[k]||(MC[k]=new THREE.MeshStandardMaterial(Object.assign({color:c,roughness:.88,metalness:0},o||{})));};
+  const G=(k,f)=>GC[k]||(GC[k]=f());
+  const BX=(w,h,d)=>G(`b${w},${h},${d}`,()=>new THREE.BoxGeometry(w,h,d));
+  function m(geo,mt,x,y,z,sh){const o=new THREE.Mesh(geo,mt);o.position.set(x||0,y||0,z||0);if(sh!==false){o.castShadow=true;o.receiveShadow=true;}return o;}
+  const gc=document.createElement('canvas');gc.width=gc.height=64;const gx=gc.getContext('2d');const gr=gx.createRadialGradient(32,32,0,32,32,32);
+  gr.addColorStop(0,'rgba(255,214,150,1)');gr.addColorStop(.4,'rgba(255,190,120,.35)');gr.addColorStop(1,'rgba(255,180,110,0)');gx.fillStyle=gr;gx.fillRect(0,0,64,64);
+  const glowTex=new THREE.CanvasTexture(gc);
+  const glowMat=new THREE.SpriteMaterial({map:glowTex,blending:THREE.AdditiveBlending,depthWrite:false,transparent:true,opacity:dark?.9:.5});
+  const poolMat=new THREE.MeshBasicMaterial({map:glowTex,blending:THREE.AdditiveBlending,depthWrite:false,transparent:true,opacity:dark?.5:.2});
+  const lampMat=v=>mat(v?'#ffe7c2':'#ffe2b0',{emissive:'#ffb86b',emissiveIntensity:dark?1.3:.75});
+  const ground=m(new THREE.CircleGeometry(N*4,48),mat(dark?'#2c382e':'#7b9466'),0,-.25,0,false);ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
+  const half=N/2+.09;const curb=mat(dark?'#5f5e58':'#b3afa4');[[0,half,N+.36,.18],[0,-half,N+.36,.18],[half,0,.18,N],[-half,0,.18,N]].forEach(([x,z,w,d])=>scene.add(m(BX(w,.2,d),curb,x,-.13,z)));
+  for(let i=0;i<20;i++){const a=i/20*Math.PI*2+h01(i,1)*.25,rr=N*.62+2+h01(i,2)*4,t=new THREE.Group(),s=.5+h01(i,3)*.5;
+    t.add(m(G('dtr',()=>new THREE.CylinderGeometry(.06,.1,.7,6)),mat('#5b4a3a'),0,.1,0));t.add(m(G('dtc',()=>new THREE.IcosahedronGeometry(.6,0)),mat(dark?'#2f4236':(i%3?'#6e8a5f':'#5d7a55')),0,.9,0));
+    t.scale.setScalar(s);t.position.set(Math.cos(a)*rr,-.25,Math.sin(a)*rr);t.rotation.y=a;scene.add(t);}
+  const grassBase=new THREE.Color(dark?'#3f5a3d':'#7fa46a');
+  const grassCol=i=>{const c=grassBase.clone();c.offsetHSL((h01(i,7)-.5)*.02,(h01(i,8)-.5)*.06,(h01(i,9)-.5)*.05);return'#'+c.getHexString();};
+  const cellObjs=new Array(N*N).fill(null);const bRoot=new THREE.Group();scene.add(bRoot);const bObjs=new Map();const roofMats=new Set();
+  const wx=x=>x-MID(),wz=z=>MID()-z;
+  function makeObj(c,x,z,i){
+    const o=new THREE.Group();const t=c.o,v=c.vo;const top=c.b?.12:0;o.position.y=top;
+    if(t==='tree'){
+      if(v===1){o.add(m(G('ptr',()=>new THREE.CylinderGeometry(.05,.08,.8,7)),mat('#5e4532'),0,.4,0));
+        [[.42,.5,.62],[.33,.42,.88],[.22,.34,1.1]].forEach(([r,h,y],k)=>{const cn=m(G('pc'+k,()=>new THREE.ConeGeometry(r,h,8)),mat(dark?'#2c4a35':'#3e6a49'),0,y,0);cn.rotation.y=k*.6+h01(i,70);o.add(cn);});}
+      else{o.add(m(G('trk',()=>new THREE.CylinderGeometry(.06,.09,.62,7)),mat('#6b4f3a'),0,.31,0));
+        const cs=dark?['#3d5a35','#45653c','#36512f']:['#5e8a4e','#6a9557','#557f48'];
+        [[0,.86,0,.36],[.19,.74,.1,.27],[-.16,.72,-.12,.28],[.03,1.02,-.06,.25]].forEach(([a,y,b,r],k)=>{const s=m(G('can',()=>new THREE.IcosahedronGeometry(1,1)),mat(cs[k%3]),a,y,b);s.scale.set(r,r*.86,r);o.add(s);});
+        o.rotation.y=h01(i,71)*6.28;}
+    }else if(t==='bush'){
+      if(v===1){for(let k=0;k<10;k++){const bl=m(G('blade',()=>new THREE.CylinderGeometry(.006,.012,.55,4)),mat('#c9b98e'),(h01(i,80+k)-.5)*.3,.27,(h01(i,90+k)-.5)*.3,false);bl.rotation.set((h01(i,100+k)-.5)*.6,0,(h01(i,110+k)-.5)*.6);o.add(bl);}}
+      else[[-.1,.2,0,.24],[.14,.16,.08,.2],[.02,.15,-.15,.18]].forEach(([a,y,b,r])=>{const s=m(G('bsh',()=>new THREE.IcosahedronGeometry(1,1)),mat(dark?'#3c5534':'#56794a'),a,y,b);s.scale.set(r,r*.85,r);o.add(s);});
+    }else if(t==='reed'){for(let k=0;k<8;k++){const a=(h01(i,120+k)-.5)*.5,b=(h01(i,130+k)-.5)*.5,hh=.5+h01(i,140+k)*.25;
+      const st=m(G('rd'+(k%3),()=>new THREE.CylinderGeometry(.007,.01,.6+(k%3)*.1,4)),mat('#8f9466'),a,(.6+(k%3)*.1)/2,b,false);st.rotation.z=(h01(i,150+k)-.5)*.3;o.add(st);
+      if(k%2===0)o.add(m(G('rtip',()=>new THREE.CylinderGeometry(.018,.018,.1,6)),mat('#7a5a3a'),a,hh+.12,b,false));}}
+    else if(t==='flower'){const fc=col('flower',v);
+      if(v===0){const lf=m(G('lf',()=>new THREE.IcosahedronGeometry(.17,1)),mat('#5b7c4a'),0,.08,0);lf.scale.y=.6;o.add(lf);[[0,.2,0],[.1,.16,.07],[-.09,.16,-.06]].forEach(([a,y,b])=>o.add(m(G('hyd',()=>new THREE.IcosahedronGeometry(.085,1)),mat(fc),a,y,b)));}
+      else for(let k=0;k<8;k++){const a=(h01(i,160+k)-.5)*.6,b=(h01(i,170+k)-.5)*.6;o.add(m(G('stm',()=>new THREE.CylinderGeometry(.006,.006,.2,4)),mat('#5f7f45'),a,.1,b,false));o.add(m(G('bud',()=>new THREE.SphereGeometry(.035,6,5)),mat(fc),a,.21,b,false));}}
+    else if(t==='bench'||t==='stump'){const grp=new THREE.Group();
+      if(t==='stump'){grp.add(m(G('stp',()=>new THREE.CylinderGeometry(.2,.24,.3,12)),mat('#6e4f35'),0,.15,0));grp.add(m(G('stt',()=>new THREE.CylinderGeometry(.19,.19,.02,12)),mat('#d1b083'),0,.31,0));}
+      else{const bc=mat(col('bench',v)),iron=mat('#34363a');
+        [-.1,0,.1].forEach(b=>grp.add(m(BX(.74,.035,.085),bc,0,.25,b)));[.37,.47].forEach(y=>grp.add(m(BX(.74,.065,.028),bc,0,y,-.15)));
+        [-.31,.31].forEach(a=>{grp.add(m(BX(.035,.25,.27),iron,a,.12,-.02));grp.add(m(BX(.035,.32,.03),iron,a,.36,-.16));});}
+      grp.rotation.y=seatFace(x,z);o.add(grp);}
+    else if(t==='lamp'){
+      if(v===0){const st=mat(dark?'#77746c':'#a9a69c');o.add(m(BX(.28,.08,.28),st,0,.04,0));o.add(m(G('lsh',()=>new THREE.CylinderGeometry(.05,.06,.3,8)),st,0,.23,0));
+        o.add(m(BX(.2,.16,.2),lampMat(0),0,.46,0,false));o.add(m(BX(.26,.03,.26),st,0,.38,0));const cap=m(G('lcap',()=>new THREE.ConeGeometry(.22,.15,4)),st,0,.62,0);cap.rotation.y=Math.PI/4;o.add(cap);
+        const gl=new THREE.Sprite(glowMat);gl.position.set(0,.46,0);gl.scale.setScalar(.9);o.add(gl);}
+      else{o.add(m(G('lpost',()=>new THREE.CylinderGeometry(.02,.026,1,6)),mat('#3a3a38'),0,.5,0));o.add(m(BX(.18,.02,.02),mat('#3a3a38'),.08,.98,0));
+        o.add(m(G('llan',()=>new THREE.CylinderGeometry(.07,.07,.18,10)),lampMat(1),.16,.86,0,false));o.add(m(G('lcp2',()=>new THREE.ConeGeometry(.09,.06,10)),mat('#3a3a38'),.16,.98,0));
+        const gl=new THREE.Sprite(glowMat);gl.position.set(.16,.86,0);gl.scale.setScalar(.8);o.add(gl);}
+      const pool=new THREE.Mesh(G('pool',()=>new THREE.PlaneGeometry(1.7,1.7)),poolMat);pool.rotation.x=-Math.PI/2;pool.position.y=.012-top;o.add(pool);}
+    return o;
+  }
+  function buildCell(i){
+    const x=i%N,z=(i/N)|0;if(cellObjs[i])scene.remove(cellObjs[i]);
+    const c=S.grid[i],g=new THREE.Group();g.position.set(wx(x),0,wz(z));
+    if(c.g==='water'){
+      g.add(m(BX(1,.12,1),mat('#40564e'),0,-.23,0));
+      const w=m(BX(1,.04,1),mat(dark?'#2c4a55':'#5d8c99',{roughness:.15,metalness:.1,transparent:true,opacity:.92}),0,-.09,0,false);w.receiveShadow=true;g.add(w);
+      DIR4.forEach(([a,b],k)=>{const nx=x+a,nz=z+b;if(inb(nx,nz)&&cell(nx,nz).g==='water')return;
+        for(let s=0;s<3;s++){const tt=(s-1)*.3+(h01(i,20+k*3+s)-.5)*.1,px=a?a*.46:tt,pz=b?-b*.46:tt;const st=m(G('stone',()=>new THREE.DodecahedronGeometry(.11,0)),mat(dark?'#5f625e':'#a19d93'),px,-.04,pz);st.scale.set(1,.55,1);st.rotation.y=h01(i,40+s+k*3)*3;g.add(st);}});
+      if(h01(i,11)<.45)g.add(m(G('lily',()=>new THREE.CylinderGeometry(.09,.09,.01,10)),mat('#6f8f4a'),(h01(i,12)-.5)*.5,-.065,(h01(i,13)-.5)*.5,false));
+    }else{
+      const base=c.g==='path'?(c.vg?(dark?'#5e625a':'#9ea295'):(dark?'#77705f':'#c9bea4')):grassCol(i);g.add(m(BX(1,.24,1),mat(base),0,-.12,0));
+      if(c.g==='path'){if(c.vg===1)[[-.22,-.2],[.2,-.18],[-.18,.22],[.22,.2]].forEach(([a,b],k)=>{const s=m(BX(.4,.04,.38),mat(dark?'#6d6e6a':'#c4c2b9'),a,.01,b);s.rotation.y=(h01(i,30+k)-.5)*.3;g.add(s);});
+        else for(let k=0;k<6;k++){const p=m(G('peb',()=>new THREE.DodecahedronGeometry(.045,0)),mat('#a99f8a'),(h01(i,50+k)-.5)*.8,.01,(h01(i,60+k)-.5)*.8,false);p.scale.y=.5;g.add(p);}}
+    }
+    if(c.o)g.add(makeObj(c,x,z,i));
+    if(c.keep){const km=mat('#c98a2e',{emissive:'#c98a2e',emissiveIntensity:.3});[[0,.47,.94,.03],[0,-.47,.94,.03],[.47,0,.03,.94],[-.47,0,.03,.94]].forEach(([a,b,w,d])=>g.add(m(BX(w,.03,d),km,a,(c.b?.13:0)+.02,b,false)));}
+    scene.add(g);cellObjs[i]=g;
+  }
+  /* 지붕 기하 */
+  function geoFrom(tris){const pos=new Float32Array(tris.length*9);tris.forEach((t,k)=>t.forEach((p,j)=>pos.set(p,k*9+j*3)));const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(pos,3));g.computeVertexNormals();return g;}
+  function hipGeo(a,b,h){const P0=[-a,0,-b],P1=[a,0,-b],P2=[a,0,b],P3=[-a,0,b];let tris;
+    if(a>=b){const r1=[-(a-b),h,0],r2=[a-b,h,0];tris=[[P3,P2,r2],[P3,r2,r1],[P1,P0,r1],[P1,r1,r2],[P0,P3,r1],[P2,P1,r2]];}
+    else{const r1=[0,h,-(b-a)],r2=[0,h,b-a];tris=[[P2,P1,r1],[P2,r1,r2],[P0,P3,r2],[P0,r2,r1],[P3,P2,r2],[P1,P0,r1]];}
+    const eq=(p,q)=>p[0]===q[0]&&p[1]===q[1]&&p[2]===q[2];return geoFrom(tris.filter(t=>!eq(t[0],t[1])&&!eq(t[1],t[2])&&!eq(t[0],t[2])));}
+  function pyrGeo(a,b,h){const A=[0,h,0],P0=[-a,0,-b],P1=[a,0,-b],P2=[a,0,b],P3=[-a,0,b];return geoFrom([[P3,P2,A],[P1,P0,A],[P0,P3,A],[P2,P1,A]]);}
+  function gableGeo(a,b,h){/* 용마루가 X축 */const R1=[-a,h,0],R2=[a,h,0];return geoFrom([[[-a,0,b],[a,0,b],R2],[[-a,0,b],R2,R1],[[a,0,-b],[-a,0,-b],R1],[[a,0,-b],R1,R2]]);}
+  function gableEnds(a,b,h){return geoFrom([[[-a,0,b],[-a,0,-b],[-a,h,0]],[[a,0,-b],[a,0,b],[a,h,0]]]);}
+  function shedGeo(a,b,h){/* 앞(+Z) 낮고 뒤(-Z) 높음 */return geoFrom([[[-a,0,b],[a,0,b],[a,h,-b]],[[-a,0,b],[a,h,-b],[-a,h,-b]]]);}
+  function shedEnds(a,b,h){return geoFrom([[[-a,0,b],[-a,0,-b],[-a,h,-b]],[[a,0,-b],[a,0,b],[a,h,-b]]]);}
+  const ownGeos=new Map();
+  function own(bid,g){if(!ownGeos.has(bid))ownGeos.set(bid,[]);ownGeos.get(bid).push(g);return g;}
+  function wallRun(grp,side,W,D,H,openings,wm,t,base){
+    /* 한 면의 벽: 개구부(문·창)를 비우고 조각으로 쌓는다 */
+    const L=side==='S'||side==='N'?W:D;const segs=[];let cur=-L/2;openings.slice().sort((p,q)=>p.c-q.c).forEach(o=>{const a=o.c-o.w/2,b=o.c+o.w/2;if(a>cur)segs.push([cur,a,0,H]);
+      if(o.kind==='door'){segs.push([a,b,o.h,H]);}else{segs.push([a,b,0,o.sill]);segs.push([a,b,o.top,H]);}cur=b;});
+    if(cur<L/2)segs.push([cur,L/2,0,H]);
+    const place=(u0,u1,y0,y1,mtl,th)=>{const len=u1-u0,h=y1-y0;if(len<=.01||h<=.01)return;const c=(u0+u1)/2;let box;
+      if(side==='S'||side==='N'){box=m(own(grp.userData.bid,new THREE.BoxGeometry(len,h,th)),mtl,c,base+y0+h/2,side==='S'?D/2-th/2:-D/2+th/2);}
+      else{box=m(own(grp.userData.bid,new THREE.BoxGeometry(th,h,len)),mtl,side==='E'?W/2-th/2:-W/2+th/2,base+y0+h/2,-c);}grp.add(box);};
+    segs.forEach(s=>place(s[0],s[1],s[2],s[3],wm,t));
+    openings.forEach(o=>{if(o.kind==='door'){place(o.c-o.w/2,o.c+o.w/2,0,o.h,mat('#5a4030'),.04);}else place(o.c-o.w/2,o.c+o.w/2,o.sill,o.top,mat(dark?'#2a3a44':'#7d97a3',{roughness:.3,metalness:.1}),.03);});
+  }
+  function openingsFor(b,side,W,D,H){const t=BT[b.type],L=sideLen(b.w,b.d,side),o=[];
+    const uOf=a=>side==='S'||side==='N'?(a+.5)-L/2:L/2-(a+.5);
+    let doorSpan=null;
+    if(t.door&&b.door&&b.door.side===side){const c=side==='S'||side==='N'?(b.door.at+t.door/2)-L/2:L/2-(b.door.at+t.door/2);const w=t.door===1?.62:1.55;o.push({kind:'door',c,w,h:Math.min(H-.12,t.door===1?.8:1.05)});doorSpan=[c-w/2-.15,c+w/2+.15];}
+    const winTop=Math.min(H-.14,.78),sill=b.type==='workshop'?.55:.38;
+    for(let a=0;a<L;a++){const c=uOf(a);if(doorSpan&&c>doorSpan[0]-.3&&c<doorSpan[1]+.3)continue;if(L>=3&&(a===0||a===L-1)&&b.type==='house')continue;if(b.type==='workshop'&&a%2===1)continue;
+      o.push({kind:'win',c,w:b.type==='workshop'?.7:.42,sill,top:b.type==='workshop'&&b.h>=3?H-.18:winTop});}
+    return o;}
+  function makeBuilding(b,ghost){
+    const t=BT[b.type],grp=new THREE.Group();grp.userData.bid=b.id;
+    grp.position.set(wx(b.x+(b.w-1)/2),0,wz(b.z+(b.d-1)/2));
+    const W=b.w,D=b.d,H=t.hVal[b.h]||1.2;const timber=mat(dark?'#3d3128':'#5a4634');const wm=t.wallMat?mat(MATS.wall[b.mats.wall][1]):timber;
+    const st=ghost?4:b.stage;
+    if(st===0){const gm=new THREE.MeshBasicMaterial({color:0x8fa3ad,transparent:true,opacity:.28,depthWrite:false});grp.add(m(own(b.id,new THREE.BoxGeometry(W-.06,.04,D-.06)),gm,0,.03,0,false));
+      const e=new THREE.LineSegments(own(b.id,new THREE.EdgesGeometry(new THREE.BoxGeometry(W-.06,H,D-.06))),new THREE.LineBasicMaterial({color:0x8fa3ad,transparent:true,opacity:.6}));e.position.y=H/2;grp.add(e);return grp;}
+    const base=b.type==='pavilion'?.12:.14;
+    if(b.type==='pavilion'){grp.add(m(own(b.id,new THREE.BoxGeometry(W-.04,.08,D-.04)),mat(dark?'#5a5852':'#8f8b82'),0,.04,0));
+      const fm=mat(MATS.floor[b.mats.floor||'oak'][1]);const n=Math.max(2,Math.round(D*4));for(let k=0;k<n;k++)grp.add(m(own(b.id,new THREE.BoxGeometry(W-.08,.04,D/n-.02)),fm,0,.1,-D/2+(k+.5)*D/n));}
+    else grp.add(m(own(b.id,new THREE.BoxGeometry(W-.02,base,D-.02)),mat(b.type==='workshop'?(dark?'#5c5a55':'#8e8c86'):(dark?'#66635c':'#a39f94')),0,base/2,0));
+    if(st>=2){const posts=[];const xs=[-W/2+.09,W/2-.09],zs=[-D/2+.09,D/2-.09];xs.forEach(x=>zs.forEach(z=>posts.push([x,z])));
+      if(b.type==='pavilion'&&W>=3)zs.forEach(z=>posts.push([0,z]));if(b.type==='pavilion'&&D>=3)xs.forEach(x=>posts.push([x,0]));
+      const ph=st>=3||b.type!=='pavilion'?H:H;posts.forEach(([x,z])=>{grp.add(m(G('post'+ph,()=>new THREE.CylinderGeometry(.05,.06,ph,8)),timber,x,base+ph/2,z));});
+      grp.add(m(own(b.id,new THREE.BoxGeometry(W-.1,.08,.08)),timber,0,base+H-.04,-D/2+.09));grp.add(m(own(b.id,new THREE.BoxGeometry(W-.1,.08,.08)),timber,0,base+H-.04,D/2-.09));
+      grp.add(m(own(b.id,new THREE.BoxGeometry(.08,.08,D-.1)),timber,-W/2+.09,base+H-.04,0));grp.add(m(own(b.id,new THREE.BoxGeometry(.08,.08,D-.1)),timber,W/2-.09,base+H-.04,0));}
+    if(st>=3&&t.closed){SIDES.forEach(s=>wallRun(grp,s,W,D,H,openingsFor(b,s,W,D,H),wm,.1,base));
+      const inner=new THREE.Group();inner.userData.interior=true;
+      if(b.type==='house'){inner.add(m(BX(.55,.16,.9),mat('#d9d2c2'),-W/2+.42,base+.08,-D/2+.6));inner.add(m(BX(.4,.06,.25),mat('#f1ece2'),-W/2+.42,base+.2,-D/2+.25));
+        inner.add(m(G('tbl',()=>new THREE.CylinderGeometry(.22,.22,.04,12)),mat('#8a6a4c'),W/2-.55,base+.36,D/2-.6));inner.add(m(G('tleg',()=>new THREE.CylinderGeometry(.03,.03,.34,6)),mat('#5a4634'),W/2-.55,base+.17,D/2-.6));
+        const rug=m(own(b.id,new THREE.PlaneGeometry(Math.max(.6,W-1.2),Math.max(.5,D-1.2))),mat('#a56b5a'),0,base+.005,0,false);rug.rotation.x=-Math.PI/2;inner.add(rug);}
+      else{inner.add(m(BX(1.3,.08,.5),mat('#9b7451'),0,base+.5,-D/2+.55));[-.55,.55].forEach(x=>inner.add(m(BX(.06,.5,.4),mat('#5a4634'),x,base+.25,-D/2+.55)));
+        for(let k=0;k<4;k++){const lg=m(G('log',()=>new THREE.CylinderGeometry(.09,.09,.9,8)),mat('#7d5a3a'),W/2-.5,base+.1+(k>1?.17:0),D/2-.5-(k%2)*.19);lg.rotation.x=Math.PI/2;inner.add(lg);}
+        inner.add(m(BX(.06,.7,1.2),mat('#86684b'),-W/2+.16,base+.6,0));}
+      grp.add(inner);}
+    if(st>=3&&b.type==='pavilion'){const rail=mat(dark?'#3d3128':'#6a5240');[[0,-D/2+.09,W-.2,.05],[ -W/2+.09,0,.05,D-.2],[W/2-.09,0,.05,D-.2]].forEach(([x,z,w,d])=>grp.add(m(own(b.id,new THREE.BoxGeometry(w,.05,d)),rail,x,base+.38,z)));}
+    if(st>=4){const roofG=new THREE.Group();roofG.userData.roof=true;const rm=new THREE.MeshStandardMaterial({color:MATS.roof[b.mats.roof][1],side:THREE.DoubleSide,roughness:b.mats.roof==='thatch'?1:b.mats.roof==='tin'?.45:.72,metalness:b.mats.roof==='tin'?.25:0});
+      rm.userData.rm=true;roofMats.add(rm);own(b.id,rm);const ov=b.type==='workshop'?.28:.24,eave=base+H,a=W/2+ov,bb=D/2+ov,fm=mat(dark?'#1f2125':'#2f3237');
+      const endMat=t.wallMat?wm:timber;
+      if(b.roof==='hip'){const rise=.3+.17*Math.min(W,D);roofG.add(m(own(b.id,hipGeo(a,bb,rise)),rm,0,eave,0));}
+      else if(b.roof==='pyramid'){const rise=.35+.2*Math.max(W,D);roofG.add(m(own(b.id,pyrGeo(a,bb,rise)),rm,0,eave,0));}
+      else if(b.roof==='gable'){const along=W>=D;const rise=.32+.22*Math.min(W,D);const g1=m(own(b.id,along?gableGeo(a,bb,rise):gableGeo(bb,a,rise)),rm,0,eave,0);if(!along)g1.rotation.y=Math.PI/2;roofG.add(g1);
+        const ge=m(own(b.id,along?gableEnds(W/2,D/2,rise*(D/2)/bb):gableEnds(D/2,W/2,rise*(W/2)/a)),endMat,0,eave,0);if(!along)ge.rotation.y=Math.PI/2;roofG.add(ge);}
+      else{const rise=.35+.14*D;roofG.add(m(own(b.id,shedGeo(a,bb,rise)),rm,0,eave,0));roofG.add(m(own(b.id,shedEnds(W/2,D/2,rise*(D/2+ov*0)/(2*bb)*2*(D/2)/(D/2))),endMat,0,eave,0));}
+      roofG.add(m(own(b.id,new THREE.BoxGeometry(2*a,.04,.04)),fm,0,eave-.01,bb));roofG.add(m(own(b.id,new THREE.BoxGeometry(2*a,.04,.04)),fm,0,eave-.01,-bb));
+      grp.add(roofG);}
+    if(b.status==='halted'){const tm=mat('#c98a2e');grp.add(m(G('cone',()=>new THREE.ConeGeometry(.12,.3,8)),tm,W/2+.1,.15,D/2+.1));}
+    if(b.keep){const e=new THREE.LineSegments(own(b.id,new THREE.EdgesGeometry(new THREE.BoxGeometry(W+.08,.06,D+.08))),new THREE.LineBasicMaterial({color:0xc98a2e}));e.position.y=.05;grp.add(e);}
+    if(ghost){grp.traverse(o=>{if(o.isMesh){o.material=ghost;o.castShadow=false;}});}
+    return grp;
+  }
+  function disposeB(bid){const gs=ownGeos.get(bid)||[];gs.forEach(g=>{if(g.dispose)g.dispose();if(g.userData&&g.userData.rm)roofMats.delete(g);});ownGeos.delete(bid);}
+  function buildB(id){const old=bObjs.get(id);if(old){bRoot.remove(old);disposeB(id);bObjs.delete(id);}const b=BM.get(id);if(!b)return;const g=makeBuilding(b,null);bRoot.add(g);bObjs.set(id,g);applyRoofMode(g);}
+  function applyRoofMode(root){const md=S.roofMode;(root||bRoot).traverse(o=>{if(o.userData&&o.userData.roof){o.visible=md!=='hide';o.traverse(k=>{if(k.isMesh&&k.material&&k.material.userData&&k.material.userData.rm){k.material.transparent=md==='ghost';k.material.opacity=md==='ghost'?.22:1;k.material.depthWrite=md!=='ghost';k.castShadow=md==='show';k.material.needsUpdate=true;}});}});needRender=true;}
+  function makeMori(){const g=new THREE.Group(),body=new THREE.Group();g.add(body);
+    const cloak=mat(dark?'#466646':'#5b7f5a'),hood=mat(dark?'#3b553b':'#4f6f4e'),skin=mat('#f1d6bd');
+    body.add(m(G('mcl',()=>new THREE.CylinderGeometry(.1,.26,.58,14)),cloak,0,.3,0));
+    const sc=m(G('msc',()=>new THREE.TorusGeometry(.105,.035,6,16)),mat('#b9782a'),0,.57,0);sc.rotation.x=Math.PI/2;body.add(sc);
+    const head=new THREE.Group();head.position.y=.76;body.add(head);
+    head.add(m(G('mh',()=>new THREE.SphereGeometry(.18,18,14)),skin));
+    const hd=m(G('mhd',()=>new THREE.SphereGeometry(.205,18,14,0,Math.PI*2,0,Math.PI*.6)),hood,0,.02,-.04);hd.rotation.x=-.4;head.add(hd);
+    const tip=m(G('mtp',()=>new THREE.ConeGeometry(.075,.2,10)),hood,0,.22,-.12);tip.rotation.x=-.55;head.add(tip);
+    head.add(m(G('mhr',()=>new THREE.SphereGeometry(.186,16,10,0,Math.PI*2,0,Math.PI*.3)),mat('#7a5638'),0,.02,.02));
+    [-.065,.065].forEach(a=>head.add(m(BX(.045,.012,.01),mat('#2a2522'),a,-.01,.176,false)));
+    const can=new THREE.Group();can.add(m(G('cn',()=>new THREE.CylinderGeometry(.05,.055,.09,10)),mat('#97a09d')));can.position.set(.2,.28,.08);can.visible=false;body.add(can);
+    g.scale.setScalar(1.2);scene.add(g);return{g,body,tool:can,top:1.3};}
+  function makeKan(){const g=new THREE.Group(),body=new THREE.Group();g.add(body);
+    const coat=mat(dark?'#2c4370':'#34508a'),hair=mat('#262c3a'),skin=mat('#f1d6bd');
+    [-.07,.07].forEach(a=>body.add(m(BX(.08,.14,.1),mat('#2a2d33'),a,.07,0)));
+    body.add(m(BX(.36,.36,.25),coat,0,.32,0));body.add(m(BX(.06,.16,.01),mat('#ecebe6'),0,.42,.127,false));
+    const head=new THREE.Group();head.position.y=.66;body.add(head);
+    head.add(m(G('kh',()=>new THREE.SphereGeometry(.17,18,14)),skin));
+    head.add(m(G('khr',()=>new THREE.SphereGeometry(.18,16,12,0,Math.PI*2,0,Math.PI*.55)),hair,0,.01,-.02));
+    head.add(m(BX(.28,.04,.28),mat('#34508a'),0,.19,0));head.add(m(BX(.42,.015,.42),mat('#2b3f6b'),0,.165,0));
+    const staff=new THREE.Group();staff.add(m(G('ks',()=>new THREE.CylinderGeometry(.013,.013,1.02,6)),mat('#b08a4e'),0,.51,0));
+    staff.position.set(-.25,0,.04);body.add(staff);g.scale.setScalar(1.02);scene.add(g);return{g,body,tool:staff,top:1.18};}
+  const chars={mori:makeMori(),kan:makeKan()};
+  const tags={};IDS.forEach(id=>{const d=document.createElement('div');d.className='tag';d.style.background=PEOPLE[id].color;d.textContent=PEOPLE[id].name;stage.appendChild(d);tags[id]=d;});
+  for(let i=0;i<N*N;i++)buildCell(i);S.buildings.forEach(b=>buildB(b.id));
+  const hov=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1,.34,1)),new THREE.LineBasicMaterial({color:0xc98a2e}));hov.visible=false;scene.add(hov);
+  const selBox=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1,1,1)),new THREE.LineBasicMaterial({color:0xe0a33a}));selBox.visible=false;scene.add(selBox);
+  const gridH=new THREE.GridHelper(N,N,0x2f3a40,0x2f3a40);gridH.position.y=.015;gridH.material.transparent=true;gridH.material.opacity=.28;gridH.visible=false;scene.add(gridH);
+  const ghostOK=new THREE.MeshBasicMaterial({color:0x5f9f6a,transparent:true,opacity:.38,depthWrite:false}),ghostBad=new THREE.MeshBasicMaterial({color:0xc0504a,transparent:true,opacity:.38,depthWrite:false});
+  let ghostObj=null,ghostKey='';
+  function setGhost(b,ok){const key=b?JSON.stringify([b.type,b.x,b.z,b.w,b.d,b.h,b.roof,b.door,ok]):'';if(key===ghostKey)return;ghostKey=key;if(ghostObj){scene.remove(ghostObj);disposeB('ghost');ghostObj=null;}
+    if(b){const gb=Object.assign({},b,{id:'ghost',stage:4,status:'built',keep:false});gb.mats=Object.assign({},b.mats);ghostObj=makeBuilding(gb,ok?ghostOK:ghostBad);scene.add(ghostObj);}needRender=true;}
+  const ray=new THREE.Raycaster(),plane=new THREE.Plane(new THREE.Vector3(0,1,0),0),v2=new THREE.Vector2(),hit=new THREE.Vector3();
+  const cv=renderer.domElement;
+  function activeCam(){return CUR.top?ocam:pcam;}
+  function pickAt(cx,cy){const rc=cv.getBoundingClientRect();v2.set((cx-rc.left)/rc.width*2-1,-((cy-rc.top)/rc.height)*2+1);const cam=activeCam();ray.setFromCamera(v2,cam);
+    let bid=null;const hits=ray.intersectObjects(bRoot.children,true);for(const h of hits){let o=h.object;if(!o.visible)continue;let p=o,ok=true;while(p){if(p.visible===false){ok=false;break;}if(p.userData&&p.userData.bid){bid=p.userData.bid;break;}p=p.parent;}if(!ok)continue;if(bid)break;}
+    let cellXY=null;if(ray.ray.intersectPlane(plane,hit)){const x=Math.round(hit.x+MID()),z=Math.round(MID()-hit.z);if(inb(x,z))cellXY=[x,z];}
+    return{bid,cell:cellXY};}
+  /* 포인터: 이동량 6px 이상이면 드래그(회전·이동), 아니면 클릭(편집). 두 손가락은 확대·이동 */
+  const ptrs=new Map();let drag=null;let lastTap=0;
+  cv.addEventListener('contextmenu',e=>e.preventDefault());
+  cv.addEventListener('pointerdown',e=>{try{cv.setPointerCapture(e.pointerId);}catch(_){}ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(ptrs.size===1)drag={id:e.pointerId,x0:e.clientX,y0:e.clientY,x:e.clientX,y:e.clientY,t0:performance.now(),moved:false,pan:e.button===2||e.button===1||e.shiftKey,btn:e.button,type:e.pointerType};
+    else if(ptrs.size===2){const a=[...ptrs.values()];drag={pinch:true,d0:Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y),dist0:CAM.dist,mx:(a[0].x+a[1].x)/2,my:(a[0].y+a[1].y)/2,moved:true};}});
+  cv.addEventListener('pointermove',e=>{const p=ptrs.get(e.pointerId);if(p){p.x=e.clientX;p.y=e.clientY;}
+    if(drag&&drag.pinch&&ptrs.size===2){const a=[...ptrs.values()];const d=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y);CAM.dist=clamp(drag.dist0*drag.d0/Math.max(20,d),4,fitDist*1.7);CAM.auto=false;
+      const mx=(a[0].x+a[1].x)/2,my=(a[0].y+a[1].y)/2;panBy(mx-drag.mx,my-drag.my);drag.mx=mx;drag.my=my;S.view=Object.assign({},CAM);needRender=true;return;}
+    if(drag&&drag.id===e.pointerId){const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(Math.hypot(e.clientX-drag.x0,e.clientY-drag.y0)>6)drag.moved=true;
+      if(drag.moved){if(drag.pan)panBy(dx,dy);else{CAM.yaw-=dx*.008;if(!CAM.top)CAM.pitch=clamp(CAM.pitch+dy*.006,.3,1.35);}drag.x=e.clientX;drag.y=e.clientY;S.view=Object.assign({},CAM);needRender=true;}
+      return;}
+    if(tool!=='view'||ui.moveFor){const p=pickAt(e.clientX,e.clientY);const c=p.cell;
+      if(c){hov.visible=!(tool==='build'&&BPAL.includes(pal))&&!ui.moveFor;hov.position.set(wx(c[0]),.12,wz(c[1]));}else hov.visible=false;
+      const k=c?c.join(','):'';if(k!==(ui.hover?ui.hover.join(','):'')){ui.hover=c;ghostUpdate();renderSpec();}needRender=true;}});
+  function endPtr(e){const was=drag;ptrs.delete(e.pointerId);if(ptrs.size===0)drag=null;else if(was&&was.pinch)drag=null;
+    if(was&&!was.pinch&&was.id===e.pointerId&&!was.moved&&performance.now()-was.t0<700&&(was.btn===0||was.type==='touch')){
+      const p=pickAt(e.clientX,e.clientY);const now=performance.now();
+      if(now-lastTap<320&&p.bid){S.sel=p.bid;camAct('focus');renderBPanel();lastTap=0;return;}lastTap=now;
+      log('ui','click',{x:p.cell?p.cell[0]:null,z:p.cell?p.cell[1]:null,bid:p.bid,tool});
+      if(ui.moveFor&&p.cell){moveTarget(p.cell[0],p.cell[1]);return;}
+      if(p.cell||p.bid)userAct(p.cell?p.cell[0]:-1,p.cell?p.cell[1]:-1,(tool==='build'&&BPAL.includes(pal))?null:p.bid);}
+    else if(was&&was.moved)log('ui','drag',{pan:!!was.pan,pinch:!!was.pinch});}
+  cv.addEventListener('pointerup',endPtr);cv.addEventListener('pointercancel',e=>{ptrs.delete(e.pointerId);drag=null;});
+  cv.addEventListener('pointerleave',()=>{hov.visible=false;});
+  cv.addEventListener('wheel',e=>{e.preventDefault();CAM.dist=clamp(CAM.dist*(e.deltaY>0?1.1:1/1.1),4,fitDist*1.7);CAM.auto=false;S.view=Object.assign({},CAM);needRender=true;},{passive:false});
+  function panBy(dx,dy){const h=Math.max(1,cv.clientHeight);const s=(CUR.top?CAM.dist*Math.tan(16*Math.PI/180)*2:2*CAM.dist*Math.tan(16*Math.PI/180))/h;
+    const r=[Math.cos(CAM.yaw),-Math.sin(CAM.yaw)],f=[-Math.sin(CAM.yaw),-Math.cos(CAM.yaw)];const k=CAM.top?1:1/Math.max(.45,Math.sin(CAM.pitch));
+    CAM.tx-=r[0]*dx*s;CAM.tz-=r[1]*dx*s;CAM.tx+=f[0]*dy*s*k;CAM.tz+=f[1]*dy*s*k;clampTarget();}
+  function ghostUpdate(){if(ui.moveFor){const b=BM.get(ui.moveFor);if(b&&ui.hover){const nx=ui.hover[0]-Math.floor((b.w-1)/2),nz=ui.hover[1]-Math.floor((b.d-1)/2);const v=validPatch(b,{x:nx,z:nz});setGhost(Object.assign({},b,{x:nx,z:nz}),v.ok);}else setGhost(null);return;}
+    if(ui.pend){setGhost(ui.pend.nb,ui.pend.ok);return;}
+    if(tool==='build'&&BPAL.includes(pal)&&ui.hover){const g=ghostAt(ui.hover[0],ui.hover[1]);setGhost(Object.assign({},g.sp,{x:g.x,z:g.z}),g.ok);}else setGhost(null);}
+  function resize(){const w=stage.clientWidth,h=stage.clientHeight;if(!w||!h)return;renderer.setSize(w,h,false);pcam.aspect=w/h;pcam.updateProjectionMatrix();
+    const th=Math.tan(pcam.fov*Math.PI/360);fitDist=clamp(Math.max(N*.62/th,N*.72/(th*pcam.aspect)),10,90);if(CAM.auto){CAM.dist=fitDist;if(!camInit){CUR.dist=fitDist;}}camInit=true;needRender=true;}
+  let camInit=false;const pv3=new THREE.Vector3();let lastFrame=0,idleSkip=0;
+  const perf={renders:0,renderMs:0,maxRender:0};
+  function frame(now){requestAnimationFrame(frame);
+    if(chatDirty&&mode==='chat')renderChat();
+    if(mode==='chat'){renderMini();}
+    if(dirty.size){dirty.forEach(buildCell);dirty.clear();needRender=true;}
+    if(dirtyBs.size){dirtyBs.forEach(buildB);dirtyBs.clear();needRender=true;}
+    if(mode!=='world')return;
+    const k0=reduce?1:.18;let moving=false;
+    for(const key of['yaw','pitch','dist','tx','tz']){const d=CAM[key]-CUR[key];if(Math.abs(d)>1e-4){CUR[key]+=d*k0;moving=true;}else CUR[key]=CAM[key];}
+    if(CUR.top!==CAM.top){CUR.top=CAM.top;moving=true;}
+    const kk=Math.min(1,(now-lastTickAt)/TICK_MS),tt=now/1000;
+    const animating=IDS.some(id=>{const r=S.res[id];return r.px!==r.x||r.pz!==r.z||r.anim!=='idle';});
+    if(!(moving||animating||needRender)){if(++idleSkip<4)return;}idleSkip=0;
+    const cam=CUR.top?ocam:pcam;
+    if(CUR.top){const hh=CUR.dist*Math.tan(16*Math.PI/180),asp=pcam.aspect||1;ocam.left=-hh*asp;ocam.right=hh*asp;ocam.top=hh;ocam.bottom=-hh;ocam.updateProjectionMatrix();
+      ocam.position.set(CUR.tx,N*3,CUR.tz);ocam.up.set(-Math.sin(CUR.yaw),0,-Math.cos(CUR.yaw));ocam.lookAt(CUR.tx,0,CUR.tz);}
+    else{pcam.position.set(CUR.tx+Math.sin(CUR.yaw)*CUR.dist*Math.cos(CUR.pitch),CUR.dist*Math.sin(CUR.pitch),CUR.tz+Math.cos(CUR.yaw)*CUR.dist*Math.cos(CUR.pitch));pcam.up.set(0,1,0);pcam.lookAt(CUR.tx,.25,CUR.tz);}
+    IDS.forEach(id=>{const r=S.res[id],ch=chars[id];const fx=r.px+(r.x-r.px)*kk,fz=r.pz+(r.z-r.pz)*kk,mv=r.px!==r.x||r.pz!==r.z;
+      const gc2=cell(r.x,r.z),gy=gc2.b?.12:(gc2.g==='water'?-.08:0);ch.g.position.set(wx(fx),gy,wz(fz));
+      let d=r.face-ch.g.rotation.y;d=Math.atan2(Math.sin(d),Math.cos(d));ch.g.rotation.y+=d*(id==='kan'?.3:.14);
+      let by=0,rx=0,rz=0;
+      if(!reduce){if(mv){by=Math.abs(Math.sin(kk*Math.PI))*(id==='kan'?.035:.06);rz=id==='mori'?Math.sin(kk*Math.PI*2)*.07:0;}
+        else if(r.anim==='plant'){by=-.1;rx=.5;}else if(r.anim==='work')by=Math.sin(kk*Math.PI)*.07;else if(r.anim==='measure')rx=.1;
+        else{if(id==='mori')rz=Math.sin(tt*1.3)*.035;by=Math.sin(tt*2+(id==='kan'?1.3:0))*.008;}}
+      ch.body.position.y+=(by-ch.body.position.y)*.4;ch.body.rotation.x+=(rx-ch.body.rotation.x)*.25;ch.body.rotation.z+=(rz-ch.body.rotation.z)*.25;
+      if(id==='mori')ch.tool.visible=r.anim==='plant';else ch.tool.rotation.x+=((r.anim==='measure'?-.75:0)-ch.tool.rotation.x)*.25;
+      pv3.set(wx(fx),gy+ch.top,wz(fz)).project(cam);tags[id].style.left=((pv3.x+1)/2*stage.clientWidth)+'px';tags[id].style.top=((1-pv3.y)/2*stage.clientHeight)+'px';});
+    const sb=S.sel?BM.get(S.sel):null;if(sb){selBox.visible=true;const H=(BT[sb.type].hVal[sb.h]||1.2)+.9;selBox.scale.set(sb.w+.16,H,sb.d+.16);selBox.position.set(wx(sb.x+(sb.w-1)/2),H/2,wz(sb.z+(sb.d-1)/2));}else selBox.visible=false;
+    const a=performance.now();renderer.render(scene,cam);const dt=performance.now()-a;perf.renders++;perf.renderMs+=dt;perf.maxRender=Math.max(perf.maxRender,dt);needRender=false;}
+  new ResizeObserver(resize).observe(stage);resize();requestAnimationFrame(frame);
+  R={resize,rebuildAll(){for(let i=0;i<N*N;i++)dirty.add(i);[...bObjs.keys()].forEach(id=>{bRoot.remove(bObjs.get(id));disposeB(id);});bObjs.clear();S.buildings.forEach(b=>dirtyBs.add(b.id));needRender=true;},
+    setEdit(on){gridH.visible=on;if(!on)hov.visible=false;needRender=true;},roofMode(){applyRoofMode();},ghost(){ghostUpdate();},preview(p){ghostUpdate();},perf,
+    screenOf(x,z,y){const rc=cv.getBoundingClientRect();pv3.set(wx(x),y||0,wz(z)).project(activeCam());return[rc.left+(pv3.x+1)/2*rc.width,rc.top+(1-pv3.y)/2*rc.height];},
+    roofState(){let vis=0,hid=0,ghost=0;bRoot.traverse(o=>{if(o.userData&&o.userData.roof){if(!o.visible)hid++;else{let g=false;o.traverse(k=>{if(k.isMesh&&k.material&&k.material.transparent&&k.material.opacity<.5)g=true;});g?ghost++:vis++;}}});return{visible:vis,hidden:hid,ghost};},
+    camNow(){return Object.assign({},CUR,{fitDist,ortho:CUR.top});},pickAt};
+}
+let flatMode=false,flatWhy='';
+function fallback(why){flatMode=true;flatWhy=why;$('flat').classList.add('on');$('nav').style.display='none';}
+const EMO={flower:'🌸',tree:'🌳',bush:'🌿',reed:'🌾',bench:'🪑',stump:'🪵',lamp:'🏮'};
+function renderFlat(){const el=$('flat');el.style.gridTemplateColumns=`repeat(${N},1fr)`;let h='';
+  for(let z=N-1;z>=0;z--)for(let x=0;x<N;x++){const c=cell(x,z);let st=`background:${groundCol(c)};`;if(c.b){const b=BM.get(c.b);st=`background:${b?(MATS.roof[b.mats.roof]||['','#555'])[1]:'#555'};`;}if(c.keep)st+='outline:1px dashed #b9782a;outline-offset:-2px;';
+    let inner=c.o?(c.o==='tree'&&c.vo?'🌲':EMO[c.o]):'';IDS.forEach(id=>{const r=S.res[id];if(r.x===x&&r.z===z)inner+=`<b style="color:${PEOPLE[id].color}">${PEOPLE[id].name[0]}</b>`;});
+    h+=`<i data-x="${x}" data-z="${z}" style="${st}">${inner}</i>`;}
+  el.innerHTML=h;}
+$('flat').addEventListener('click',e=>{const i=e.target.closest('i[data-x]');if(i)userAct(+i.dataset.x,+i.dataset.z);});
+function confetti(){
+  if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+  const cv=document.createElement('canvas');cv.className='confetti';document.body.appendChild(cv);
+  const dpr=Math.min(2,window.devicePixelRatio||1),W=innerWidth,H=innerHeight;cv.width=W*dpr;cv.height=H*dpr;const ctx=cv.getContext('2d');ctx.scale(dpr,dpr);
+  const cols=['#5b7f5a','#34508a','#b9782a','#e9e4d8','#8f8fd0'],ps=[];
+  for(let i=0;i<80;i++){const L=i%2===0;ps.push({x:L?-6:W+6,y:H*.8,vx:(L?1:-1)*(180+Math.random()*360),vy:-(520+Math.random()*420),r:Math.random()*6.3,vr:(Math.random()-.5)*8,w:5+Math.random()*4,h:8+Math.random()*5,c:cols[i%cols.length]});}
+  const t0=performance.now(),DUR=2600;let last=t0;
+  (function f(now){const dt=Math.min(.05,(now-last)/1000);last=now;const t=now-t0;ctx.clearRect(0,0,W,H);
+    ps.forEach(p=>{p.vy=Math.min(p.vy+900*dt,260);p.vx*=Math.pow(.6,dt);p.x+=p.vx*dt;p.y+=p.vy*dt;p.r+=p.vr*dt;const k=Math.abs(Math.cos(p.r));
+      ctx.save();ctx.translate(p.x,p.y);ctx.rotate(p.r*.5);ctx.globalAlpha=Math.max(0,1-t/DUR);ctx.fillStyle=p.c;ctx.fillRect(-p.w/2,-p.h*k/2,p.w,p.h*k+1);ctx.restore();});
+    if(t<DUR)requestAnimationFrame(f);else cv.remove();})(t0);
+}
+
+/* ================= 12. 루프·시작 ================= */
+let lastTickAt=performance.now();
+function tick(){
+  S.tick++;lastTickAt=performance.now();
+  if(S.script.length){if(S.scriptWait>0)S.scriptWait--;else{const s=S.script.shift();if(s.call)CALLS[s.call](s.arg);else post(s.who,s.text,s.extra);S.scriptWait=s.wait!=null?s.wait:2;}}
+  pumpCmds();
+  step('mori');step('kan');
+  const a=S.res.mori,b=S.res.kan;if(a.x===b.x&&a.z===b.z){S.stats.overlaps++;log('sys','overlap',{x:a.x,z:a.z});}
+  IDS.forEach(id=>{const r=S.res[id];if(!walkable(r.x,r.z)){r.bad++;if(r.bad===3){S.stats.illegal++;log('sys','illegal',{id,x:r.x,z:r.z});}}else r.bad=0;});
+  const busy=S.script.length||a.q.length||b.q.length||S.cmdQ.length;
+  if(busy)S.idle=0;else{S.idle++;
+    if(S.sugPending&&S.idle===6){S.sugPending=false;trySuggest(['mori','kan']);}
+    if(S.idle===AUTO_IDLE&&!S.compare&&!S.draft&&!S.suggestion)autonomy();
+    else if(S.idle%12===0)idleMove(S.idle%24===0?'kan':'mori');}
+  if(S.ver!==tick.lastVer){tick.lastVer=S.ver;saveDirty=true;}
+  if(saveDirty&&performance.now()-lastSaveAt>=SAVE_MIN_MS)save();
+  if(a.px!==a.x||a.pz!==a.z||b.px!==b.x||b.pz!==b.z)needRender=true;
+  renderCast();if(S.tick%3===0)renderHud();if(mode==='world'&&S.tick%2===0)renderTicker();
+  if(flatMode&&mode==='world')renderFlat();
+}
+function intro(){note(`${N}×${N} 마을 · 주민 모리와 칸`);post('mori','안녕. 나는 모리. 물가랑 나무 곁이 좋아.');post('kan','칸입니다. 축이 맞는 구조를 좋아합니다.');}
+function applyView(){if(S.view){Object.assign(CAM,S.view);Object.assign(CUR,S.view);}syncCamButtons();}
+function reset(){
+  try{if(!NOSAVE)localStorage.removeItem(SAVE_KEY);}catch(e){}
+  N=CFG.N;S=fresh();rebuildBM();intro();saveState.load='new';$('banner').className='banner';resetChatDom();
+  if(R){R.rebuildAll();}CAM.yaw=-.55;CAM.pitch=.62;CAM.tx=0;CAM.tz=0;CAM.top=false;CAM.auto=true;if(R)R.resize();S.view=null;applyView();
+  setTool('view');toast=null;chatDirty=true;renderChat();save();log('sys','reset',null);
+}
+const L0=loadSave();
+if(L0.status==='restored'){S=L0.state;N=S.cfg.N;saveState.load='restored';saveState.at=L0.at;
+  showBanner('info',`지난 저장(${new Date(L0.at).toLocaleString('ko-KR')})에서 이어서 시작했어요. ${N}×${N} 마을·건물·합의·취향·명령 대기열·진행 중 작업·채팅·카메라를 복원했어요.`);}
+else if(L0.status==='migrated'){S=L0.state;N=S.cfg.N;saveState.load='migrated';const r=L0.rep;
+  showBanner('info',`v2 저장을 ${N}×${N} 마을로 가져왔어요. 옮긴 것: 격자·물건·보존·합의·빼기·고른 모양·이력${r.moved.length?' · '+r.moved.join(', '):''}${r.fixed.length?' · 보정: '+r.fixed.join(', '):''}${r.dropped.length?' · 옮기지 않은 것: '+r.dropped.join(', '):''}. v2 원본 저장은 그대로 남겨뒀어요.`);
+  post('note',`v2 저장에서 가져옴 · ${r.moved.join(', ')||'건물 없음'}`);}
+else{S=fresh();intro();saveState.load=L0.status;
+  if(L0.status==='corrupt'){saveState.why=L0.why;showBanner('bad',`저장본이 손상돼 복원하지 않았어요 (${L0.why}). 새 마을로 시작했고, 손상본은 따로 보관했어요.`);}
+  else if(L0.status==='v2corrupt'){saveState.why=L0.why;showBanner('bad',`v2 저장을 가져오지 못했어요 (${L0.why}). v2 원본은 지우지 않고 그대로 두었어요. 새 마을로 시작해요.`);}
+  else if(L0.status==='unsupported'){saveState.why=L0.why;showBanner('bad',`${L0.why}. 원본은 지우지 않고 그대로 두었어요. 새 마을로 시작해요.`);}
+  else if(L0.status==='unavailable')showBanner('bad','이 브라우저에서는 저장할 수 없어 새로고침하면 사라져요.');}
+rebuildBM();
+init3D();applyView();
+if(flatMode)note(flatWhy+' · 평면 보기로 표시합니다');
+renderPalette();renderSave();renderChat();renderMini();renderCast();renderHud();
+log('sys','boot',{load:saveState.load,why:saveState.why||null,brain:brain.name,speed:SPEED,N});
+setInterval(tick,TICK_MS);
+addEventListener('pagehide',()=>{if(!blockSave)save();});document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&!blockSave)save();});
+let blockSave=false;
+
+function snapshot(){
+  const count={};S.grid.forEach(c=>{['g','o'].forEach(L=>{const t=typeAt(c,L);if(t&&t!=='grass')count[t]=(count[t]||0)+1;});});
+  const by={mori:0,kan:0,me:0};S.grid.forEach(c=>Object.values(c.by).forEach(x=>{if(by[x]!=null)by[x]++;}));
+  return{tick:S.tick,N,mode,count,buildings:S.buildings.map(b=>({id:b.id,name:b.name,type:b.type,x:b.x,z:b.z,w:b.w,d:b.d,h:b.h,roof:b.roof,mats:b.mats,door:b.door,stage:b.stage,status:b.status,keep:b.keep,owner:b.owner})),builtBy:by,
+    res:{mori:[S.res.mori.x,S.res.mori.z,S.res.mori.q.length],kan:[S.res.kan.x,S.res.kan.z,S.res.kan.q.length]},
+    compare:!!S.compare,draft:S.draft?{base:S.draft.base,n:S.draft.res.ops.length}:null,suggestion:S.suggestion?S.suggestion.sig:null,sel:S.sel,
+    projects:S.projects.map(p=>({pid:p.pid,kind:p.kind,status:p.status,total:p.total,c:p.c,hash:p.hash||null,issues:p.issues,cmd:p.cmd})),
+    cmds:S.cmds.map(c=>({id:c.id,text:c.text,kind:c.kind,status:c.status,reason:c.reason,pid:c.pid})),cmdQ:S.cmdQ.slice(),
+    memory:{requests:S.mem.requests.map(r=>r.text),agreements:S.mem.agreements.map(a=>a.summary),bans:Object.keys(S.mem.bans),prefs:S.mem.prefs,bprefs:S.mem.bprefs,autonomy:S.mem.autonomy,declined:S.mem.declined,suggested:S.mem.suggested},
+    keep:S.grid.filter(c=>c.keep).length,user:S.grid.filter(c=>c.ut!=null).length,undo:S.undo.length,stats:S.stats,gridHash:gridHash(),save:{load:saveState.load,why:saveState.why||null,err:saveState.err,bytes:saveState.bytes,count:saveState.count,ms:Math.round(saveState.ms)},chat:S.chat.length,roofMode:S.roofMode,view:S.view,migrated:S.migrated};
+}
+function gridHash(){return fnv(S.grid.map(c=>[c.g,c.vg,c.o||'-',c.vo,c.keep?'K':'',c.b||''].join('')).join('|')+'#'+S.buildings.map(b=>[b.id,b.type,b.x,b.z,b.w,b.d,b.h,b.roof,b.mats.roof,b.mats.wall||'',b.door?b.door.side+b.door.at:'',b.stage].join(',')).join(';'));}
+/* 점검·자동화용 훅 */
+window.Glance={get state(){return S;},snapshot,send:(t,src)=>{const c=submit(t,src||'api');return c?c.id:null;},pickBase:b=>pickBase(b),toggle,confirm:()=>confirmDraft(),fold:()=>foldPlan(),reset,setMode,setTool,
+  setPalette:k=>{pal=k;renderPalette();renderHud();},setBSpec:o=>{Object.assign(ui.bspec,o);if(o.mats)ui.bspec.mats=Object.assign({},ui.bspec.mats,o.mats);renderHud();},act:userAct,select:id=>{S.sel=id;renderBPanel();bump();},
+  undo,stop:()=>stopAll(null),acceptSug:()=>acceptSug(null),declineSug:()=>declineSug(),idle:()=>!(S.script.length||S.res.mori.q.length||S.res.kan.q.length||S.cmdQ.length),
+  saveNow:save,saveInfo:()=>Object.assign({},saveState),blockSave:v=>{blockSave=!!v;},fnv,SAVE_KEY,BROKEN_KEY,V2_KEY,brain:()=>brain.name,is3D:()=>!!R,speed:SPEED,
+  cam:()=>R?R.camNow():Object.assign({},CAM),camTarget:()=>Object.assign({},CAM),camAct,roofState:()=>R?R.roofState():null,screenOf:(x,z,y)=>R?R.screenOf(x,z,y):null,pickAt:(x,y)=>R?R.pickAt(x,y):null,
+  perf:()=>Object.assign({},R?R.perf:{},renderStats,{saves:saveState.count,saveMs:Math.round(saveState.ms),saveBytes:saveState.bytes}),bEdit:(id,attr)=>{const b=BM.get(id);const p=bPatchFor(b,attr);return userEditB(b,p,patchLabel(b,p));},
+  bValid:(id,patch)=>{const b=BM.get(id);const v=validPatch(b,patch);return{ok:v.ok,why:v.why||null};},
+  _testBuild:(ops,kind)=>build({ops,kind:kind||'test',summary:'점검용'}),_resolve:fs=>{const r=resolve(fs);return{ops:r.ops.map(o=>o.op==='bnew'?[o.x,o.z,'B',o.spec.type]:[o.x,o.z,o.layer,o.type]),ev:evTexts(r.events,fs)};}};
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,863 @@
+diff -ruN a/CHAT-INTEGRATION.md b/CHAT-INTEGRATION.md
+--- a/CHAT-INTEGRATION.md	1970-01-01 00:00:00.000000000 +0000
++++ b/CHAT-INTEGRATION.md	2026-10-28 04:35:26.959251363 +0000
+@@ -0,0 +1,109 @@
++# Glance 통합 채팅 (ChatGPT · Claude · Gemini) — 최소 구현
++
++기존 Glance 본체(task-5)의 작업 사본에 **한 입력 → 여러 제공자 응답 → 선택 답변 교차 검토** 흐름을 추가했습니다. 복셀·캐릭터·영상·결제·자동 회의 엔진·Anti-LLMism은 바꾸지 않았습니다.
++
++**완료 범위: 통합 채팅 로컬 구현·합성 검증 완료.**
++**실제 3개 제공자 연결 확인: 미완료.** 이번 작업에서 모델 호출은 0회였고, 인증 정보는 열지 않았습니다.
++
++## 작업 환경과 전제
++- 받은 것: 사용자가 첨부한 `task-5.zip`. 로컬 PC 폴더 자체에는 접근하지 못했습니다.
++  - 압축본에는 `.git`이 없어 원본을 보존하고 별도 작업 사본에서 수정했습니다.
++  - `AGENTS.md`는 압축본에 없었습니다.
++- 다른 담당자의 동시 수정 여부는 압축 스냅샷만으로는 확인할 수 없었습니다. `server.pid`, `writer.lock`이 들어 있었지만 실행 중인지는 모릅니다. 적용 전에 PC에서 서버와 다른 작업이 멈춰 있는지 확인하세요.
++- 검사 환경: Linux 컨테이너, Python 3.12.3(README의 요구는 3.13), Node 22, Chromium(Playwright).
++
++## 기존 구현으로 이미 가능했던 것 (재사용)
++- 이벤트 소싱 저장(`events.jsonl`)과 버전 검사 명령.
++- 실행 기록(`runs`): 요청 ID·계획 해시·출처를 보존합니다.
++- `transport.py`: 세 제공자의 출력 형식을 내는 실제 로컬 합성 하위 프로세스, 시간 초과·출력 한도·취소 신호·전송 기록.
++- 재시작 시 진행 중이던 실행을 "다시 보내지 않음"으로 마감합니다.
++- `prepare_run`(실제 요청 계획을 승인 대기로만 생성)과 `invoke_provider` 차단.
++- 과거 기록 가져오기와 출처 배지.
++
++## 이번에 추가·수정한 것
++| 요구 | 구현 |
++|---|---|
++| A. 단일 입력·제공자 선택 | `chat_send` 명령. 작성창에 ChatGPT·Claude·Gemini 선택과 방식(합성 검증 / 실제 요청 준비)을 추가했습니다. 화면 이름, 내부 ID(`codex`/`claude`/`antigravity`), 실제 도구(Codex CLI / Claude Code / Antigravity)를 따로 저장합니다. 모델은 고정하지 않고, 요청 모델은 사용자가 지정할 때만 쓰며 보고 모델은 결과 그대로 표시합니다. |
++| B. 제공자별 독립 상태 | 제공자마다 별도 실행과 별도 하위 프로세스를 씁니다. 상태 표시: 접수 · 응답 중 · 완료 · 실패(시간 초과) · 취소 · 승인 대기 · 미확인. 실패는 응답 칸을 비우고 오류만 보여 줍니다(가짜 응답 없음). 동시 실행 상한을 넘으면 일부만 만들지 않고 요청 전체를 거절합니다. |
++| C. 선택 응답 교차 검토 | `chat_review` 명령. 원래 질문, 선택 답변, 그 질문 때의 공통 맥락만 전달합니다. 원본 실행 ID·원본 응답 이벤트 ID·답변 해시를 기록하고, 같은 제공자에게 검토를 맡기거나 미완료 답변을 보내는 것은 거절합니다. |
++| D. 공통 맥락·보존 | 한 번의 전송은 그 시점의 유효 프로젝트 지시를 한 번 찍은 스냅샷(해시 포함)을 모든 제공자에 똑같이 씁니다. 새로고침과 재시작 뒤 대화를 복원하되 자동으로 다시 보내지 않고, 진행 중이던 것은 '미확인 · 중단됨'으로 둡니다. 이전 세션에서 저장된 응답은 '이전 세션에서 저장됨'으로 구분합니다. |
++| E. 반복·취소 | 별개 전송은 같은 문장이어도 각각 새 질문이 됩니다. 같은 `submission_id`를 다시 보내면 새 이벤트 없이 기존 질문을 돌려주고, 같은 ID로 다른 내용을 보내면 거절합니다. 취소 요청 뒤 도착한 결과는 완료로 되살리지 않고 `late_receipt`에만 보존합니다. 자동 재시도는 없습니다(화면에서 버전 충돌 시 같은 ID로 한 번만 다시 보냄). 승인 대기 계획은 전송 없이 취소할 수 있습니다. |
++
++### 수정 파일
++- `workroom.py`: `chat_turns` 테이블, `chat_send`·`chat_review`, 취소 뒤 늦은 결과 처리, 승인 대기 계획 취소, 상태 투영.
++- `static/app.js`·`index.html`·`style.css`: 작성창 선택 상자, 질문 카드와 제공자별 패널, 검토 버튼. 기존 어두운 팔레트에 맞췄습니다.
++- `fixtures/transport_child.py`: 합성 응답에 '받은 입력의 SHA-256·글자 수·제공자'를 넣었습니다(입력 원문은 되돌리지 않음). 실제로 무엇이 전달됐는지를 받는 쪽에서 증명하기 위해서입니다.
++- 추가: `test_chat.py`.
++
++## 실행
++1. 기존 `task-5` 폴더의 **사본**에 적용합니다: `glance-chat.patch`를 `patch -p1` 또는 `git apply`로 적용하거나, `changed/` 폴더의 파일을 같은 경로에 덮어씁니다.
++2. 서버를 띄웁니다: `python server.py --port 8874 --data-dir .state-verified` (기존 README와 동일). 이미 실행 중이면 중복 실행하지 마세요.
++3. 대화 화면에서 보낼 AI를 고르고 입력합니다.
++   - '합성 검증'은 로컬 하위 프로세스만 실행하고 외부 호출은 없습니다.
++   - '실제 요청 준비'는 계획만 만들고 전송하지 않습니다.
++   - 선택을 모두 해제하면 기존 단일 메시지 기록(`send_message`)으로 동작합니다.
++
++## 검증 (실제 명령·종료 코드)
++| 명령 | 수정 전(원본 그대로) | 수정 후 |
++|---|---|---|
++| `python -m unittest -v test_chat` | — | 10개 모두 통과, exit 0 |
++| `python -m unittest discover -v` | 119개 · 실패 9 · 오류 4 · 건너뜀 1, exit 1 | 129개 · 실패 9 · 오류 4 · 건너뜀 1, exit 1 — **실패 목록이 수정 전과 동일**(새 실패 0) |
++| `node --test static/*.test.cjs` | 25개 중 1개 실패, exit 1 | 같은 1개 실패, exit 1 |
++| `node --check static/app.js` · `world3d.js` | — | exit 0 |
++| `python verify_http_transport.py` | HTTP 400, exit 1 | 같은 지점 HTTP 400, exit 1 |
++| `ui_check.py` (실제 `server.py` + Chromium) | — | exit 0, 페이지 오류 0 |
++
++**기존 실패(수정 전부터 있음, 환경 차이)**
++- 브리지 릴리스 검사 6건: Windows 절대경로가 리눅스에서 절대경로가 아니고, 브리지 원본이 압축본 밖에 있습니다.
++- 깊은 JSON 중첩 검사 7건: Python 3.12와 3.13의 차이로 추정됩니다.
++- Node 캐릭터 검사 1건과 `verify_http_transport.py`: Windows 경로의 원본 이미지와 과거 기록 레지스트리를 읽습니다.
++- **PC의 Python 3.13 환경에서 다시 확인해야 합니다.**
++
++**`test_chat.py` 항목.** 모두 실제 `Workroom` 명령과 실제 하위 프로세스를 거칩니다. 기대 프롬프트는 검사 쪽에서 문서 형식대로 따로 조립하고, 하위 프로세스가 보고한 수신 해시와 비교합니다.
++1. 3개 제공자 성공: 같은 맥락 해시를 쓰고, 세 제공자가 받은 입력 해시가 기대 프롬프트와 일치합니다.
++2. 시간 초과 1개와 비정상 종료 1개가 섞여도 나머지 1개가 4초 안에 완료됩니다. 실패한 쪽의 응답 칸은 비어 있습니다.
++3. 교차 검토: 검토 제공자가 받은 입력 = 원래 질문 + 선택 답변 + 공통 맥락(해시 일치)입니다. 다른 제공자의 답변은 들어가지 않고, 원본 실행 ID와 응답 이벤트 ID가 참조로 남습니다.
++4. 같은 제공자에게 검토를 맡기는 것과 실패한 답변을 검토하는 것은 거절됩니다.
++5. 같은 문장 두 번 전송은 질문 2개가 되고, 같은 제출 ID 재전송은 새 이벤트·새 하위 프로세스 0입니다. 같은 ID로 다른 내용을 보내면 거절됩니다.
++6. 취소 뒤 늦은 성공 결과가 와도 취소 상태가 유지되고 응답 칸은 비어 있으며, 늦은 결과는 따로 보존됩니다.
++   - 이 검사는 워커의 취소 신호를 떼어 두고, 실제 기록 함수로 늦은 결과를 전달합니다(점검 훅).
++7. 실제 요청 준비: 3개 모두 승인 대기 상태가 되고, 전송 기록·하위 프로세스는 0이며 `invoke_provider`는 계속 차단됩니다.
++8. 동시 실행 상한을 넘으면 요청 전체를 거절하고 일부 실행도 생기지 않습니다.
++9. 재시작 복원: 완료 응답은 '이전 세션 저장'으로 복원되고, 진행 중이던 것은 미확인으로 마감됩니다. 재전송은 0입니다.
++10. 과거 기록 가져오기와 이번 합성 응답의 출처가 구분되고, 서로 섞이지 않습니다.
++   - 이 검사는 레지스트리 경로만 압축본 안 파일로 바꿔 씁니다.
++
++**화면 확인(`shots/`, 5장)**
++- 세 제공자 완료(01), ChatGPT 답변을 Claude에 검토 요청(02), 부분 실패(03), 실제 요청 준비(04), 새로고침 뒤 질문 4개 복원(05).
++- 새로고침 전후로 전송 기록과 상태 버전이 바뀌지 않았습니다(재전송 없음).
++- 합성 응답은 모의 문장이므로 답의 품질은 보지 않았습니다.
++
++## 제공자별 상태
++| 화면 이름 | 실제 도구 | 기존 구현 | 이번 구현 | 실제 연결 |
++|---|---|---|---|---|
++| ChatGPT | Codex CLI | 출력 정규화(`providers.py`), 실행 계획 생성, 합성 하위 프로세스 형식, 2026-10-26 smoke 1회 기록 | 동시 전송·검토에서 합성 실행 또는 승인 대기 계획 | **미검증**: 이번 호출 0회. 과거 기록은 현재 성공으로 쓰지 않음. 제한된 실행 문맥의 인증 차이가 미해결로 기록돼 있음 |
++| Claude | Claude Code | 같음, 2026-10-26 smoke 1회 기록 | 같음 | **미검증**: 이번 호출 0회. 해당 모델의 계정별 이용 가능 여부는 미확인 |
++| Gemini | Antigravity (`agy`) | 같음, 과거 실행 기록. 2026-10-26 smoke는 보류 | 같음 | **미검증**: 현재 인증·이용량·유료 fallback 상태를 확인할 비밀 없는 상태 명령이 없음 |
++
++## 실제 호출 검증을 시작하기 전에 남은 조건
++1. **실제 실행기가 없음.** `transport.execute_provider`는 의도적으로 항상 거절합니다.
++   - 채팅에서 '실제 요청 준비'를 하면 계획만 쌓입니다.
++   - 승인된 계획을 실제 CLI로 보내는 실행기와, 그 실행의 인증 정책·하위 프로세스 정리 정책은 **별도 승인을 받은 뒤** 구현해야 합니다.
++2. **제공자마다 아래 항목을 정하고 승인.** 제출할 때 각 항목을 제시하고 멈춥니다.
++   - 연결 방식: 기존 구독 CLI 경로를 쓰고, API 키로 대체하지 않습니다.
++   - 모델: `SMOKE-PROPOSAL.md`의 후보는 계정에서 수락되는지 미확인입니다.
++   - 보낼 합성 문장: `SMOKE-PROPOSAL.md`의 쿠폰 문장 재사용을 제안합니다.
++   - 요청 횟수: 제공자당 1회.
++   - 예상 소비와 추가 과금 여부: 구독 이용량을 소비하고, 금액·한도는 **미확인**입니다.
++3. **제공자별 사전 확인**
++   - ChatGPT: Glance 하위 프로세스 실행 문맥에서도 로그인 상태가 보이는지 확인해야 합니다(기록상 제한 문맥에서는 미로그인으로 보였음).
++   - Gemini: 현재 계정·이용량·유료 fallback을 끈 상태인지 확인해야 합니다.
++4. **이용 조건 확인:** 개인 구독이 이런 앱 연동 사용을 허용하는지, 각 제공자의 공식 문서·약관으로 확인해야 합니다(이번에는 확인하지 않음).
++5. **PC 환경 재검사:** 패치를 적용한 뒤 PC(Windows, Python 3.13)에서 기존 회귀를 다시 돌려, 이 환경의 기존 실패가 사라지는지 확인해야 합니다.
++
++## 파일
++- `glance-chat.patch`: 원본 대비 통합 diff
++- `changed/`: 변경·추가 파일(원래 경로 그대로)
++- `checks/`: `test_chat.py`, `ui_check.py`, 수정 전후 원본 로그(stdout·stderr·종료 코드)
++- `shots/`: 화면 캡처 5장
++- `SHA256SUMS.txt`: 포함 파일 해시
+diff -ruN a/fixtures/transport_child.py b/fixtures/transport_child.py
+--- a/fixtures/transport_child.py	2026-10-28 04:35:26.937833740 +0000
++++ b/fixtures/transport_child.py	2026-10-28 04:35:26.950686890 +0000
+@@ -25,8 +25,11 @@
+         message = json.loads(raw)
+         if message.get("event") != "user" or not isinstance(message.get("message", {}).get("content"), str):
+             raise ValueError("Invalid fixture Antigravity input")
++        received = message["message"]["content"]
+     elif not raw.strip():
+         raise ValueError("Missing fixture prompt")
++    else:
++        received = raw.decode("utf-8")
+     if scenario in ("timeout", "wait_for_cancel"):
+         time.sleep(60)
+     if scenario == "output_overflow":
+@@ -45,7 +48,10 @@
+     if scenario == "conversation_mismatch":
+         conversation += "-mismatch"
+     usage = {"input_tokens": 11, "output_tokens": 7, "total_tokens": 18}
+-    report = "Synthetic local fixture report; no external provider was called."
++    # 받은 입력을 그대로 증명할 수 있도록 해시·길이·제공자를 응답에 담는다(입력 원문은 되돌려주지 않음).
++    import hashlib
++    report = ("Synthetic local fixture report; no external provider was called. provider=" + provider +
++              " received_sha256=" + hashlib.sha256(received.encode("utf-8")).hexdigest() + " received_chars=" + str(len(received)))
+     # Concurrent pipe activity exercises independent stdout/stderr drain.
+     print("Synthetic diagnostic; excluded from report.", file=sys.stderr, flush=True)
+     if provider == "antigravity":
+diff -ruN a/static/app.js b/static/app.js
+--- a/static/app.js	2026-10-28 04:35:26.945971065 +0000
++++ b/static/app.js	2026-10-28 04:35:26.958527147 +0000
+@@ -57,8 +57,27 @@
+   function effectiveForSelection() {const phase=selectedTask||state.project.active_phase_id;const rank={correction:0,instruction:1,summary:2};return state.instructions.filter(i=>i.effective&&(i.scope==='project'||i.phase_id===phase)).sort((a,b)=>(Number(a.provenance==='synthetic_fixture')-Number(b.provenance==='synthetic_fixture'))||(rank[a.kind]??3)-(rank[b.kind]??3)||(b.seq||0)-(a.seq||0));}
+   function renderProjects() {$('project-list').innerHTML=(state.projects.length?state.projects:[state.project]).map(p=>`<button class="project-card ${p.id===selectedProject?'active':''}" data-project="${esc(p.id)}"><span class="project-icon">◇</span><span><strong>${esc(displayProjectTitle(p))}</strong><small>${esc(labels[p.status]||p.status)} · 로컬 프로젝트</small></span><span class="tiny-dot green"></span></button>`).join('');$('task-list').innerHTML=`<button class="task-button ${selectedTask===null?'active':''}" data-task=""><span class="task-mark">◈</span>전체 대화<span class="task-step">ALL</span></button>`+state.tasks.map((t,i)=>`<button class="task-button ${selectedTask===t.id?'active':''}" data-task="${esc(t.id)}"><span class="task-mark">${t.status==='done'?'✓':t.status==='blocked'?'Ⅱ':'○'}</span><span>${esc(t.title||'작업 '+(i+1))}</span><span class="task-step">${t.mode==='synthetic_fixture'?'예시':String(i+1).padStart(2,'0')}</span></button>`).join('');}
+   function renderAgents() {$('agent-strip').innerHTML=agents().map(a=>{const cls=roleClass(a), running=WorkroomProjection.characterActive(cls,state.runs), c=state.connections.find(c=>c.id===a.connector_id);return `<button class="agent-chip ${selectedAgent===a.id?'active':''} ${running?'busy':''}" data-agent="${esc(a.id)}">${portrait(a)}<span><span class="agent-name">${esc(characterFor(a).actor_name)} <span class="agent-connection">${c?.connected?'연결':'미연결'}</span></span><span class="agent-role">${roleName(a)}</span></span><span class="tiny-dot"></span></button>`;}).join('');}
+-  function filteredMessages() {return state.messages.filter(m=>(!selectedTask||m.task_id===selectedTask||m.phase_id===selectedTask)&&(!selectedAgent||m.agent_id===selectedAgent||m.role==='user'));}
+-  function renderMessages() {const messages=filteredMessages();$('message-count').textContent=`${messages.length}개 메시지`;$('messages').innerHTML=messages.length?messages.map(m=>{const a=m.role==='user'?{id:'user',label:'나'}:agents().find(a=>a.id===m.agent_id)||{id:m.agent_id,label:m.agent_id||'워크룸'};const cls=m.role==='user'?'user':roleClass(a);return `<article class="message ${cls}" id="message-${esc(m.id)}">${m.role==='user'?'<span class="agent-avatar user">나</span>':portrait(a)}<div class="message-content"><div class="message-head"><strong>${esc(m.role==='user'?'나':characterFor(a).actor_name)}</strong><span class="message-role">${m.role==='user'?'프로젝트 오너':roleName(a)}</span>${badge(m.provenance)}<span class="message-time">${esc(time(m.created_at))}</span></div>${list(m.references).length?`<div class="message-ref">↳ 참조 ${esc(m.references.join(', '))}</div>`:''}<div class="message-body">${esc(m.text||m.content||'')}</div><div class="message-actions"><button data-reply="${esc(m.id)}">↩ 답글</button><button data-record="${esc(m.id)}">근거 및 참조</button></div></div></article>`;}).join(''):`<div class="empty-state"><span class="empty-cube">◇</span><h3>${selectedAgent?'이 에이전트의 메시지가 없습니다.':'아직 메시지가 없습니다.'}</h3></div>`;}
++  function filteredMessages() {return state.messages.filter(m=>!m.chat_internal&&(!selectedTask||m.task_id===selectedTask||m.phase_id===selectedTask)&&(!selectedAgent||m.agent_id===selectedAgent||m.role==='user'));}
++  function renderMessages() {const messages=filteredMessages();$('message-count').textContent=`${messages.length}개 메시지`;$('messages').innerHTML=messages.length?messages.map(m=>{if(m.chat_turn_id){const t=list(state.chat_turns).find(x=>x.id===m.chat_turn_id);if(t)return chatTurnCard(t,m);}const a=m.role==='user'?{id:'user',label:'나'}:agents().find(a=>a.id===m.agent_id)||{id:m.agent_id,label:m.agent_id||'워크룸'};const cls=m.role==='user'?'user':roleClass(a);return `<article class="message ${cls}" id="message-${esc(m.id)}">${m.role==='user'?'<span class="agent-avatar user">나</span>':portrait(a)}<div class="message-content"><div class="message-head"><strong>${esc(m.role==='user'?'나':characterFor(a).actor_name)}</strong><span class="message-role">${m.role==='user'?'프로젝트 오너':roleName(a)}</span>${badge(m.provenance)}<span class="message-time">${esc(time(m.created_at))}</span></div>${list(m.references).length?`<div class="message-ref">↳ 참조 ${esc(m.references.join(', '))}</div>`:''}<div class="message-body">${esc(m.text||m.content||'')}</div><div class="message-actions"><button data-reply="${esc(m.id)}">↩ 답글</button><button data-record="${esc(m.id)}">근거 및 참조</button></div></div></article>`;}).join(''):`<div class="empty-state"><span class="empty-cube">◇</span><h3>${selectedAgent?'이 에이전트의 메시지가 없습니다.':'아직 메시지가 없습니다.'}</h3></div>`;}
++
++  const chatStatus={queued:'접수',running:'응답 중',succeeded:'완료',failed:'실패',timed_out:'실패 · 시간 초과',cancelled:'취소',cancel_requested:'취소 처리 중',awaiting_approval:'실제 요청 준비됨 · 승인 대기',disconnected:'미확인 · 중단됨',interrupted:'미확인 · 중단됨',uncertain:'미확인'};
++  const chatStatusClass=s=>s==='succeeded'?'ok':['failed','timed_out'].includes(s)?'bad':['cancelled'].includes(s)?'muted':['disconnected','interrupted','uncertain'].includes(s)?'warn':'run';
++  const chatProvenance=r=>r.mode==='synthetic'?'합성 응답(모의)':r.mode==='live_pending'?'실제 연결 미검증':r.mode==='historical'?'과거 기록':'';
++  const newSubmissionId=()=>(window.crypto&&crypto.randomUUID)?crypto.randomUUID():('s'+Date.now().toString(36)+Math.random().toString(36).slice(2,12));
++  function chatRunPanel(t,r){const others=list(state.chat_providers).filter(p=>p.id!==r.provider);const active=['queued','running','awaiting_approval'].includes(r.status);
++    const fail=r.failure&&r.failure.code?`${r.failure.code}${r.failure.message?' · '+r.failure.message:''}`:'';
++    return `<section class="chat-run ${esc(r.provider)}" data-run="${esc(r.run_id)}"><header><strong>${esc(r.display_name||r.provider)}</strong><span class="chat-tool">${esc(r.tool_name||'')}</span><span class="chat-status ${chatStatusClass(r.status)}">${esc(chatStatus[r.status]||r.status)}</span></header>
++    <div class="chat-meta"><span class="provenance">${esc(chatProvenance(r))}</span>${r.stored_before_session?'<span class="provenance stored">이전 세션에서 저장됨</span>':''}<span>요청 모델 ${esc(r.requested_model||'미지정')}</span>${r.reported_model?`<span>보고 모델 ${esc(r.reported_model)}</span>`:''}${r.finished_at?`<span>응답 시각 ${esc(time(r.finished_at))}</span>`:''}</div>
++    ${r.response?`<div class="chat-answer">${esc(r.response)}</div>`:''}
++    ${r.status!=='succeeded'&&(r.error||fail)?`<div class="chat-error">${esc(r.error||'')}${fail&&r.error?'<br>':''}${esc(fail)}</div>`:''}
++    ${r.late_response_ignored?`<div class="chat-late">취소 뒤 도착한 결과(${esc(r.late_receipt?.status||'')})는 응답으로 반영하지 않았습니다.</div>`:''}
++    ${r.preparation_notice&&r.status==='awaiting_approval'?`<div class="chat-note">${esc(r.preparation_notice)}</div>`:''}
++    <div class="chat-actions"><span class="chat-ids">실행 ${esc(String(r.run_id).slice(0,8))} · 요청 ${esc(String(r.request_id||'').slice(0,8))}</span>${active?`<button data-chat-cancel="${esc(r.run_id)}">취소</button>`:''}${r.status==='succeeded'&&others.length?`<label class="chat-review">검토 맡길 AI <select data-chat-reviewer="${esc(r.run_id)}">${others.map(p=>`<option value="${esc(p.id)}">${esc(p.display)}</option>`).join('')}</select></label><button data-chat-review="${esc(r.run_id)}" data-mode="${esc(t.mode)}">이 답변 검토 요청</button>`:''}</div></section>`;}
++  function chatTurnCard(t,m){const src=t.review_of;const srcRun=src?list(state.runs).find(r=>r.id===src.run_id):null;const name=id=>(list(state.chat_providers).find(p=>p.id===id)||{}).display||id;
++    return `<article class="message user chat-turn" id="message-${esc(m.id)}" data-turn="${esc(t.id)}"><span class="agent-avatar user">나</span><div class="message-content"><div class="message-head"><strong>나</strong><span class="message-role">${t.kind==='review'?'교차 검토 요청':'통합 질문'} · ${esc(t.providers.map(name).join(' · '))}</span><span class="message-time">${esc(time(t.created_at))}</span></div>
++    ${src?`<div class="message-ref">↳ 검토 대상: ${esc(name(src.source_provider))} 답변 · 실행 ${esc(String(src.run_id).slice(0,8))} · 원문 해시 ${esc(String(src.answer_sha256).slice(0,10))}${srcRun?'':' (원본 없음)'}</div>`:''}
++    <div class="message-body">${esc(t.text)}</div><div class="chat-context">공통 맥락 v${esc(t.context_snapshot?.instruction_version)} · 지시 ${list(t.context_snapshot?.instructions).length}개 · ${esc(String(t.context_sha256).slice(0,10))}</div>
++    <div class="chat-runs">${list(t.runs).map(r=>chatRunPanel(t,r)).join('')}</div></div></article>`;}
+   function renderReply() {const box=$('reply-context');box.hidden=!replyId;if(replyId){const m=state.messages.find(m=>m.id===replyId);box.innerHTML=`<span>↳ 답글 · ${esc((m?.text||replyId).slice(0,70))}</span><button id="clear-reply" aria-label="답글 취소">×</button>`;}}
+   const scoped = rows => rows.filter(r=>!selectedTask||r.phase_id===selectedTask||r.task_id===selectedTask);
+   function renderInspector() {const draft=$('correction-input')?.value, focused=document.activeElement?.id==='correction-input';const content=$('inspector-content');$('inspector-heading').textContent={brief:'작업 브리핑',evidence:'프로젝트 기록',agent:'에이전트 작업실',artifact:'결과물 상세',record:'기록 및 참조',instructions:'프로젝트 지시'}[inspector]||'작업 브리핑';let html='';if(inspector==='agent'){const a=agents().find(a=>a.id===selectedAgent)||agents()[0];const c=state.connections.find(c=>c.id===a.connector_id);const reviews=scoped(state.reviews).filter(r=>String(r.reviewer).toLowerCase().includes(a.id)||String(r.reviewer).toLowerCase().includes(roleClass(a))||(r.connector_id&&r.connector_id===a.connector_id));html=`<button class="inspector-back" data-inspector="brief">← 작업 브리핑</button><div class="inspector-kicker">${esc(roleName(a))}</div><h2>${esc(characterFor(a).actor_name)}</h2><p class="inspector-description">${esc(c?.reason||'실제 제공자와 연결되지 않았습니다. 아래 기록은 출처 배지로 구분됩니다.')}</p><div class="metric-row"><span>연결 / 실행 승인</span><strong>${c?.connected?'연결됨':'미연결'} / ${c?.authorized?'승인됨':'미승인'}</strong></div><div class="metric-row"><span>실행 모델 · 노력 수준</span><strong>Unknown / not provided</strong></div><div class="inspector-section"><h3>리뷰 기록 <span>${reviews.length}</span></h3>${reviews.map(reviewCard).join('')||'<p class="zero-evidence">아직 리뷰 기록이 없습니다.</p>'}</div><div class="inspector-section"><h3>이 에이전트의 대화</h3><p class="zero-evidence">대화 보기를 선택하면 이 에이전트와 연결된 메시지가 표시됩니다.</p><button class="button secondary" data-show-chat="">대화로 이동 ↗</button></div>`;}else if(inspector==='evidence'){html=`<button class="inspector-back" data-inspector="brief">← 작업 브리핑</button><div class="inspector-kicker">APPEND-ONLY HISTORY</div><h2>프로젝트 기록</h2><button class="button secondary" data-inspector="instructions">프로젝트 지시와 수정 내역 ↗</button><div class="inspector-section"><h3>결과물 및 테스트 <span>${scoped(state.artifacts).length}</span></h3>${scoped(state.artifacts).map(artifactCard).join('')||'<p class="zero-evidence">검증 자료가 아직 없습니다.</p>'}</div><div class="inspector-section"><h3>리뷰</h3>${scoped(state.reviews).map(reviewCard).join('')||'<p class="zero-evidence">리뷰 기록이 아직 없습니다.</p>'}</div><div class="inspector-section"><h3>시간순 이벤트 <span>${state.events.length}</span></h3>${[...scoped(state.events)].reverse().slice(0,30).map(e=>`<div class="evidence-item"><strong>#${esc(e.seq)} · ${esc(e.type)}</strong>${badge(e.provenance)}<small>${esc(time(e.created_at))} · ${esc(e.id)}</small></div>`).join('')||'<p class="zero-evidence">첫 기록을 기다리고 있어요.</p>'}</div>`;}else if(inspector==='instructions'){html=`<button class="inspector-back" data-inspector="brief">← 작업 브리핑</button><div class="inspector-kicker">USER DIRECTION</div><h2>프로젝트의 방향</h2><p class="inspector-description">최신 수정 지시를 우선합니다. 이전 지시와 원문은 기록에 남습니다.</p><form id="correction-form"><label class="sr-only" for="correction-input">수정 지시</label><textarea id="correction-input" class="correction-input" placeholder="새 수정 지시를 입력하세요" required maxlength="64000"></textarea><button class="button secondary" type="submit">수정 지시 저장 ↑</button></form><div class="inspector-section"><h3>선택한 작업에 적용되는 지시</h3>${effectiveForSelection().map(instructionCard).join('')||'<p class="zero-evidence">등록된 프로젝트 지시가 없습니다.</p>'}</div><div class="inspector-section"><h3>전체 이력</h3>${[...state.instructions].reverse().map(instructionCard).join('')}</div>`;}else if(inspector==='artifact'){const a=state.artifacts.find(x=>x.id===selectedArtifact)||{};html=`<button class="inspector-back" data-inspector="evidence">← 프로젝트 기록</button><div class="inspector-kicker">${esc(a.kind||'ARTIFACT')}</div><h2>${esc(a.label||a.revision||a.id||'결과물')}</h2>${badge(a.provenance)}<div class="metric-row"><span>상태</span><strong>${esc(labels[a.status]||a.status||'수동')}</strong></div><div class="metric-row"><span>리비전</span><strong>${esc(a.revision||'Unknown / not provided')}</strong></div><div class="metric-row"><span>기준 리비전</span><strong>${esc(a.base_revision||'Unknown / not provided')}</strong></div>${a.workspace_path?`<p class="inspector-description">작업 공간: ${esc(a.workspace_path)}</p>`:''}${a.changed_files?`<div class="inspector-section"><h3>변경 파일</h3><p class="inspector-description">${esc(a.changed_files.join('\n'))}</p><div class="metric-row"><span>통합 기록</span><strong>${a.integrated?'명시적 통합 있음':'미통합'}</strong></div></div>`:''}<div class="inspector-section"><h3>테스트 명령 / 내용</h3><pre class="detail-output">${esc(a.command||'')}</pre><pre class="detail-output">${esc(a.output||a.diff_text||a.text||'내용이 제공되지 않았습니다.')}</pre></div><small class="zero-evidence">근거 ID: ${esc(a.source_event_id||a.id||'')}</small>`;}else if(inspector==='record'){const m=state.messages.find(m=>m.id===selectedArtifact),e=state.events.find(e=>e.id===selectedArtifact);html=`<button class="inspector-back" data-inspector="brief">← 작업 브리핑</button><h2>기록 및 참조</h2>${badge(m?.provenance||e?.provenance)}<pre class="detail-output">${esc(JSON.stringify(m||e||{},null,2))}</pre>`;}else html=briefHTML();content.innerHTML=html;if(draft!==undefined&&$('correction-input')){$('correction-input').value=draft;if(focused)$('correction-input').focus();}renderControls();}
+@@ -106,9 +125,12 @@
+   $('refresh-renderer-info').onclick=rendererInfo;
+   reducedMotion?.addEventListener?.('change',e=>worldRenderer?.setReducedMotion(e.matches));
+   window.addEventListener('pagehide',()=>worldRenderer?.dispose(),{once:true});
+-  $('chat-toggle').onclick=()=>setView('chat');$('world-toggle').onclick=()=>setView('world');$('refresh-button').onclick=refresh;$('evidence-button').onclick=()=>{inspector='evidence';renderInspector();};$('message-form').onsubmit=async e=>{e.preventDefault();const input=$('message-input'), text=input.value.trim();if(!text)return;try{await command('send_message',{text,task_id:selectedTask,agent_id:selectedAgent,references:replyId?[replyId]:[]});input.value='';replyId=null;renderReply();$('messages').scrollTop=$('messages').scrollHeight;}catch(err){toast(err.message);}};$('message-input').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();$('message-form').requestSubmit();}};
++  $('chat-toggle').onclick=()=>setView('chat');$('world-toggle').onclick=()=>setView('world');$('refresh-button').onclick=refresh;$('evidence-button').onclick=()=>{inspector='evidence';renderInspector();};$('message-form').onsubmit=async e=>{e.preventDefault();const input=$('message-input'), text=input.value.trim();if(!text)return;const targets=[...document.querySelectorAll('input[name="chat-provider"]:checked')].map(x=>x.value);if(targets.length){const payload={text,providers:targets,mode:$('chat-mode').value,submission_id:newSubmissionId()};try{try{await command('chat_send',payload);}catch(err){if(err.code!=='VERSION_CONFLICT')throw err;await command('chat_send',payload);}input.value='';$('messages').scrollTop=$('messages').scrollHeight;}catch(err){toast(err.message);}return;}try{await command('send_message',{text,task_id:selectedTask,agent_id:selectedAgent,references:replyId?[replyId]:[]});input.value='';replyId=null;renderReply();$('messages').scrollTop=$('messages').scrollHeight;}catch(err){toast(err.message);}};$('message-input').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();$('message-form').requestSubmit();}};
+   document.addEventListener('submit',async e=>{if(e.target.id!=='correction-form')return;e.preventDefault();const input=$('correction-input'),text=input.value.trim();if(!text)return;try{await command('add_instruction',{text,kind:'correction',scope:'project',phase_id:null,supersedes:[]});if($('correction-input'))$('correction-input').value='';toast('수정 지시를 프로젝트 기록에 저장했습니다.');}catch(err){toast(err.message);}});
+   document.addEventListener('click',e=>{if(e.target.closest('#clear-reply')){replyId=null;renderReply();}});
++  document.addEventListener('click',async e=>{const c=e.target.closest('[data-chat-cancel]'),v=e.target.closest('[data-chat-review]');if(!c&&!v)return;e.preventDefault();
++    try{if(c){await command('cancel_run',{run_id:c.dataset.chatCancel});return;}const run=v.dataset.chatReview,sel=document.querySelector(`select[data-chat-reviewer="${CSS.escape(run)}"]`);const payload={source_run_id:run,reviewer:sel.value,mode:v.dataset.mode||'synthetic',submission_id:newSubmissionId()};
++      try{await command('chat_review',payload);}catch(err){if(err.code!=='VERSION_CONFLICT')throw err;await command('chat_review',payload);}}catch(err){toast(err.message);}});
+   function connectionValue(value) {if(value===null||value===undefined||value===''||value==='Unknown / not provided')return '제공되지 않음';const names={not_logged_in_in_current_cli_environment:'현재 CLI 로그인 안 됨',not_logged_in:'로그인 안 됨',not_checked:'확인하지 않음',unknown:'확인 안 됨',true:'인증 확인',false:'미인증'};return names[String(value)]||String(value);}
+   function transportLabel(value) {return ({success:'성공',error:'오류',nonzero_exit:'비정상 종료',timeout:'시간 초과',malformed:'형식 오류',malformed_output:'형식 오류',mismatch:'ID 불일치',conversation_mismatch:'대화 ID 불일치',cancel:'취소 대기',wait_for_cancel:'취소 대기',output_overflow:'출력 한도 초과',prepared_live:'실행 계획',local_fixture:'로컬 검사',historical_import:'과거 기록'})[value]||value;}
+   function modeBadge(record) {const m=WorkroomProjection.mode(record);return `<span class="transport-badge ${m}" title="${esc(WorkroomProjection.modes[m])}">${esc(WorkroomProjection.modes[m])}</span>`;}
+diff -ruN a/static/index.html b/static/index.html
+--- a/static/index.html	2026-10-28 04:35:26.946324739 +0000
++++ b/static/index.html	2026-10-28 04:35:26.958832151 +0000
+@@ -25,7 +25,7 @@
+         <section id="world-view" class="world-view" hidden aria-label="프로젝트 월드"><div class="world-heading"><div><h2>프로젝트 월드</h2></div><span class="world-live"><span class="tiny-dot"></span><span id="world-status">대기 중</span></span></div><div class="world-tools"><span id="world-renderer-mode" class="provenance">2D 대체 보기</span><div class="camera-controls" role="group" aria-label="3D 카메라"><button type="button" data-camera="left" aria-label="왼쪽 시점">↶</button><button type="button" data-camera="center">기본 시점</button><button type="button" data-camera="right" aria-label="오른쪽 시점">↷</button></div><details class="renderer-details"><summary>렌더링 정보</summary><button id="refresh-renderer-info" class="text-link" type="button">정보 갱신</button><pre id="world-renderer-diagnostics" class="detail-output">아직 3D를 시작하지 않았습니다.</pre></details></div><div class="world-stage" id="world-stage"><svg id="world" viewBox="0 0 1000 575" role="img" aria-label="검증된 작업 결과를 블록으로 보여 주는 프로젝트 월드"></svg><div class="world-hint">선택하여 기록 보기</div></div><div id="world-accessible-controls" class="world-accessible-controls" role="group" aria-label="월드 항목 선택"></div><div class="world-legend"><span><i class="legend-square verified"></i> 검증 결과 <strong id="verified-count">0</strong></span><span><i class="legend-square fixture"></i> 기본 시설</span><span><i class="legend-square ephemeral"></i> 활동</span></div></section>
+         <div id="reply-context" class="reply-context" hidden></div>
+         <div id="upload-status" class="upload-status" hidden></div>
+-        <form id="message-form" class="composer"><label for="message-input" class="sr-only">프로젝트에 메시지 보내기</label><textarea id="message-input" rows="2" placeholder="메시지 입력"></textarea><div class="composer-bottom"><div><button type="button" id="upload-button" class="attach-button" aria-label="작은 텍스트 파일 첨부">＋</button><span>텍스트 파일 첨부 <span class="keyboard-hint">· Enter 전송 / Shift + Enter 줄바꿈</span></span><input type="file" id="file-input" accept=".txt,.md,.json,.csv,.log,.py,.js,.html,.css" hidden></div><button type="submit" id="send-button" class="button send">보내기 <span>↑</span></button></div></form>
++        <form id="message-form" class="composer"><label for="message-input" class="sr-only">프로젝트에 메시지 보내기</label><div class="chat-targets" role="group" aria-label="보낼 AI"><span class="chat-targets-label">보낼 AI</span><label><input type="checkbox" name="chat-provider" value="codex" checked> ChatGPT</label><label><input type="checkbox" name="chat-provider" value="claude" checked> Claude</label><label><input type="checkbox" name="chat-provider" value="antigravity" checked> Gemini</label><label class="chat-mode-label">방식 <select id="chat-mode" aria-label="실행 방식"><option value="synthetic" selected>합성 검증(모의 응답)</option><option value="live_pending">실제 요청 준비(승인 전 전송 안 함)</option></select></label></div><textarea id="message-input" rows="2" placeholder="메시지 입력"></textarea><div class="composer-bottom"><div><button type="button" id="upload-button" class="attach-button" aria-label="작은 텍스트 파일 첨부">＋</button><span>텍스트 파일 첨부 <span class="keyboard-hint">· Enter 전송 / Shift + Enter 줄바꿈</span></span><input type="file" id="file-input" accept=".txt,.md,.json,.csv,.log,.py,.js,.html,.css" hidden></div><button type="submit" id="send-button" class="button send">보내기 <span>↑</span></button></div></form>
+         
+       </main>
+       <aside class="inspector" aria-label="작업 정보"><div class="inspector-header"><span id="inspector-heading">작업 브리핑</span><span class="small-cross">✦</span></div><div id="inspector-content" class="inspector-content"></div></aside>
+diff -ruN a/static/style.css b/static/style.css
+--- a/static/style.css	2026-10-28 04:35:26.946356951 +0000
++++ b/static/style.css	2026-10-28 04:35:26.958858977 +0000
+@@ -23,3 +23,31 @@
+ .brand-logo{width:31px;height:31px;object-fit:contain;flex-shrink:0}.sidebar-bottom img.small-logo{padding:0;background:none;object-fit:contain}
+ 
+ .world-3d-canvas{display:block;width:100%;height:380px;touch-action:pan-y;cursor:pointer;outline:none}.world-tools{display:flex;align-items:center;gap:14px;padding:13px 20px 0;position:relative;z-index:1}.camera-controls{display:flex;gap:3px;margin-left:auto;border:1px solid #48583f;border-radius:5px;padding:2px;background:#202a1b}.camera-controls button{font-size:11px;padding:5px 8px;min-width:28px;border-radius:3px}.camera-controls button:hover{background:#34452a}.world-accessible-controls{display:flex;justify-content:center;align-items:center;gap:8px;padding:5px 16px 15px;flex-wrap:wrap}.world-accessible-controls .button{font-size:11px;padding:6px 11px}.world-accessible-controls [aria-pressed=true]{border-color:#b5cea0;background:#3a4d2f}.renderer-details{font-size:10px;color:#a3b394}.renderer-details summary{cursor:pointer}.renderer-details[open]{position:absolute;right:15px;top:10px;width:275px;padding:10px;background:#1c2617;border:1px solid #526348;border-radius:6px;z-index:5}.renderer-details .detail-output{max-height:250px;font-size:10px}.world-stage{position:relative}.world-stage:has(.world-3d-canvas:not([hidden])) .world-hint{bottom:7px}@media(max-width:760px){.world-3d-canvas{height:320px}.world-tools{padding:12px 14px 0;gap:9px}.renderer-details{font-size:10px}.camera-controls button{font-size:10px;padding:5px}.world-accessible-controls{gap:6px}.world-accessible-controls .button{font-size:11px;padding:6px 9px}}
++
++/* 통합 채팅(3개 제공자) — 기존 어두운 팔레트에 맞춤 */
++.chat-targets{display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-size:11.5px;padding:2px 2px 6px;color:#b9c4ae}
++.chat-targets-label{color:#8f9a86;font-weight:600}
++.chat-targets label{display:inline-flex;align-items:center;gap:4px;cursor:pointer}
++.chat-targets input{accent-color:#9fd36a}
++.chat-mode-label{margin-left:auto;color:#8f9a86}
++.chat-mode-label select{font:inherit;font-size:11.5px;padding:2px 6px;border-radius:6px;border:1px solid #3a4433;background:#22281f;color:#d4dfcb}
++.chat-turn .message-content{min-width:0;flex:1}
++.chat-context{font-size:10.5px;color:#8f9a86;margin:2px 0 8px}
++.chat-runs{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px}
++.chat-run{border:1px solid #343d2e;border-radius:10px;padding:8px 10px;background:#1c2119;min-width:0;color:#d4dfcb}
++.chat-run.codex{border-top:3px solid #10a37f}.chat-run.claude{border-top:3px solid #d97757}.chat-run.antigravity{border-top:3px solid #6b93f0}
++.chat-run header{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
++.chat-run header strong{color:#e6eedd;font-size:12px}
++.chat-tool{font-size:10.5px;color:#8f9a86}
++.chat-status{margin-left:auto;font-size:10.5px;border-radius:999px;padding:1px 8px;background:#2c3128;color:#aab3a2}
++.chat-status.ok{background:#23402b;color:#9fe0ae}.chat-status.bad{background:#4a2323;color:#f2a7a7}.chat-status.warn{background:#4a3a1c;color:#f1cf8a}.chat-status.run{background:#22324a;color:#a9c6f5}.chat-status.muted{background:#2c3128;color:#aab3a2}
++.chat-meta{display:flex;flex-wrap:wrap;gap:6px;font-size:10.5px;color:#8f9a86;margin:4px 0}
++.chat-meta .stored{background:#33284a;color:#cbb5f5}
++.chat-answer{white-space:pre-wrap;font-size:11.5px;line-height:1.7;margin:4px 0;overflow-wrap:anywhere;color:#d4dfcb}
++.chat-error{font-size:11px;color:#f2a7a7;background:#2e1c1c;border-radius:6px;padding:4px 6px;margin:4px 0;overflow-wrap:anywhere}
++.chat-late,.chat-note{font-size:11px;color:#f1cf8a;background:#2e2717;border-radius:6px;padding:4px 6px;margin:4px 0}
++.chat-actions{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:6px;font-size:11px;color:#b9c4ae}
++.chat-actions button{font:inherit;font-size:11px;border:1px solid #3a4433;background:#22281f;color:#d4dfcb;border-radius:6px;padding:2px 8px;cursor:pointer}
++.chat-actions button:hover{border-color:#9fd36a}
++.chat-actions select{font:inherit;font-size:11px;background:#22281f;color:#d4dfcb;border:1px solid #3a4433;border-radius:6px}
++.chat-ids{color:#6f7a68;font-size:10px;margin-right:auto}
+diff -ruN a/test_chat.py b/test_chat.py
+--- a/test_chat.py	1970-01-01 00:00:00.000000000 +0000
++++ b/test_chat.py	2026-10-28 04:35:26.959268696 +0000
+@@ -0,0 +1,310 @@
++"""통합 채팅(3개 제공자) 합성 검사. 네트워크·실제 모델 없이 실제 Workroom 명령과 실제 로컬 합성 하위 프로세스(fixtures/transport_child.py)를 사용한다.
++검사 결과는 미리 만든 카드가 아니라 명령 실행 뒤 상태·전송 기록·하위 프로세스가 보고한 수신 해시에서 계산한다."""
++import hashlib
++import json
++from pathlib import Path
++import shutil
++import tempfile
++import threading
++import time
++import unittest
++
++from workroom import DomainError, Workroom
++
++HERE = Path(__file__).resolve().parent
++TERMINAL = ("succeeded", "failed", "cancelled", "disconnected", "timed_out", "interrupted", "uncertain")
++DISPLAY = {"codex": "ChatGPT", "claude": "Claude", "antigravity": "Gemini"}
++
++
++def sha(text):
++    return hashlib.sha256(text.encode("utf-8")).hexdigest()
++
++
++def expected_ask_prompt(question, instructions, version):
++    # 문서화된 전송 형식을 검사 쪽에서 따로 조립한다(구현 함수 재사용 아님).
++    lines = ["[Glance 공통 맥락 v%d]" % version] + ["- (%s) %s" % (k, t) for k, t in instructions] if instructions else ["[Glance 공통 맥락 v%d]" % version, "- (없음)"]
++    return "\n".join(lines) + "\n\n[질문]\n" + question
++
++
++def expected_review_prompt(question, answer, source_display, instructions, version):
++    lines = ["[Glance 공통 맥락 v%d]" % version] + ["- (%s) %s" % (k, t) for k, t in instructions]
++    return ("\n".join(lines) + "\n\n[원래 질문]\n" + question + "\n\n[검토할 답변 · " + source_display + "]\n" + answer +
++            "\n\n[요청]\n위 답변을 원래 질문과 공통 맥락에 비추어 검토하고, 틀리거나 빠진 점과 근거를 짧게 적어 주세요.")
++
++
++class ChatBase(unittest.TestCase):
++    def setUp(self):
++        self.tmp = tempfile.TemporaryDirectory()
++        self.room = Workroom(self.tmp.name)
++
++    def tearDown(self):
++        self.room.close()
++        self.tmp.cleanup()
++
++    def cmd(self, name, **payload):
++        for _ in range(50):
++            try:
++                return self.room.command(name, self.room.state()["version"], payload)
++            except DomainError as exc:
++                if exc.code != "VERSION_CONFLICT":
++                    raise
++                time.sleep(0.02)
++        raise AssertionError("version conflict did not settle")
++
++    def runs(self, ids):
++        by = {r["id"]: r for r in self.room.state()["runs"]}
++        return [by[i] for i in ids]
++
++    def wait(self, ids, timeout=20):
++        end = time.time() + timeout
++        while time.time() < end:
++            rs = self.runs(ids)
++            if all(r["status"] in TERMINAL for r in rs):
++                return rs
++            time.sleep(0.05)
++        raise AssertionError("runs did not finish: " + str([(r["provider"], r["status"]) for r in self.runs(ids)]))
++
++    def received(self, run):
++        resp = run["response"] or ""
++        part = [x for x in resp.split() if x.startswith("received_sha256=")]
++        return part[0].split("=", 1)[1] if part else None
++
++    def journals(self):
++        root = Path(self.tmp.name, "transport-journal")
++        return sorted(p.name for p in root.glob("*.jsonl")) if root.exists() else []
++
++
++class ChatFlowTests(ChatBase):
++    def add_context(self):
++        self.cmd("add_instruction", text="답은 한국어로 짧게", kind="instruction", scope="project", phase_id=None, supersedes=[])
++        st = self.room.state()
++        return [("instruction", "답은 한국어로 짧게")], st["project"]["instruction_version"]
++
++    def test_three_providers_succeed_with_same_context(self):
++        ctx, ver = self.add_context()
++        q = "쿠폰 값을 0..10으로 자른 뒤 합하면 [-2, 3, 14]의 합은?"
++        r = self.cmd("chat_send", text=q, providers=["codex", "claude", "antigravity"], submission_id="ask-three-0001")
++        runs = self.wait(r["run_ids"])
++        turn = next(t for t in self.room.state()["chat_turns"] if t["id"] == r["turn_id"])
++        prompt = expected_ask_prompt(q, ctx, ver)
++        self.assertEqual(["succeeded"] * 3, [x["status"] for x in runs])
++        self.assertEqual(["codex", "claude", "antigravity"], [x["provider"] for x in runs])
++        self.assertEqual(["ChatGPT", "Claude", "Gemini"], [x["display_name"] for x in turn["runs"]])
++        for run in runs:
++            self.assertEqual(sha(prompt), self.received(run), run["provider"] + " 하위 프로세스가 받은 입력")
++            self.assertEqual("synthetic-" + run["provider"] + "-fixture", run["reported_model"])
++            self.assertIsNone(run["requested_model"])
++            self.assertEqual("synthetic_fixture", run["provenance"])
++            self.assertIn("provider=" + run["provider"], run["response"])
++        self.assertEqual(1, len({x["input_sha256"] for x in runs}))
++        self.assertEqual(sha(prompt), runs[0]["input_sha256"])
++
++    def test_one_timeout_one_failure_do_not_block_others(self):
++        r = self.cmd("chat_send", text="부분 실패 검사", providers=["codex", "claude", "antigravity"], submission_id="ask-partial-01",
++                     fixture_scenarios={"claude": "timeout", "antigravity": "nonzero_exit"})
++        t0 = time.time()
++        codex = None
++        while time.time() - t0 < 10:
++            codex = self.runs([r["run_ids"][0]])[0]
++            if codex["status"] == "succeeded":
++                break
++            time.sleep(0.05)
++        codex_done_at = time.time() - t0
++        runs = self.wait(r["run_ids"])
++        by = {x["provider"]: x for x in runs}
++        self.assertEqual("succeeded", by["codex"]["status"])
++        self.assertLess(codex_done_at, 4.0, "시간 초과 제공자를 기다리지 않고 먼저 완료돼야 함")
++        self.assertEqual("timed_out", by["claude"]["status"])
++        self.assertFalse(by["claude"]["response"], "실패를 응답 문장으로 대체하지 않음")
++        self.assertIn(by["antigravity"]["status"], ("failed",))
++        self.assertFalse(by["antigravity"]["response"])
++        shown = {x["provider"]: x for t in self.room.state()["chat_turns"] if t["id"] == r["turn_id"] for x in t["runs"]}
++        self.assertIsNone(shown["claude"]["response"]); self.assertIsNone(shown["antigravity"]["response"])
++        self.assertIn("provider=codex", shown["codex"]["response"])
++        self.assertTrue(by["claude"]["failure"] and by["antigravity"]["failure"])
++        self.assertIn("provider=codex", by["codex"]["response"])
++
++    def test_review_transfers_exact_question_answer_context_only(self):
++        ctx, ver = self.add_context()
++        q = "이 함수의 경계값 처리가 맞는지 봐 줘"
++        r = self.cmd("chat_send", text=q, providers=["codex", "claude", "antigravity"], submission_id="ask-review-001")
++        src, other1, other2 = self.wait(r["run_ids"])
++        rv = self.cmd("chat_review", source_run_id=src["id"], reviewer="claude", submission_id="review-0000001")
++        (review,) = self.wait(rv["run_ids"])
++        prompt = expected_review_prompt(q, src["response"], "ChatGPT", ctx, ver)
++        self.assertEqual("succeeded", review["status"])
++        self.assertEqual(sha(prompt), self.received(review), "검토 제공자가 받은 입력 = 원래 질문·선택 답변·공통 맥락")
++        plan = next(p for p in self.room.state()["execution_plans"] if p["run_id"] == review["id"])
++        self.assertEqual(prompt, plan["request"]["input_text"])
++        self.assertIn(src["response"], prompt)
++        self.assertNotIn(other1["response"], plan["request"]["input_text"])
++        self.assertNotIn(other2["response"], plan["request"]["input_text"])
++        turn = next(t for t in self.room.state()["chat_turns"] if t["id"] == rv["turn_id"])
++        self.assertEqual("review", turn["kind"])
++        self.assertEqual(src["id"], turn["review_of"]["run_id"])
++        self.assertEqual(r["turn_id"], turn["review_of"]["root_turn_id"])
++        self.assertEqual(sha(src["response"]), turn["review_of"]["answer_sha256"])
++        event = next(e for e in self.room.state()["events"] if e["type"] == "chat_turn_submitted" and e["payload"].get("chat_turn_id") == rv["turn_id"])
++        self.assertIn(src["id"], event["references"])
++        self.assertIn(src["response_event_id"], event["references"])
++
++    def test_review_rules(self):
++        r = self.cmd("chat_send", text="규칙 검사", providers=["codex", "claude"], submission_id="ask-rules-0001", fixture_scenarios={"claude": "nonzero_exit"})
++        codex, claude = self.wait(r["run_ids"])
++        with self.assertRaises(DomainError) as same:
++            self.cmd("chat_review", source_run_id=codex["id"], reviewer="codex", submission_id="review-same-01")
++        self.assertEqual("SAME_PROVIDER_REVIEW", same.exception.code)
++        with self.assertRaises(DomainError) as failed:
++            self.cmd("chat_review", source_run_id=claude["id"], reviewer="antigravity", submission_id="review-fail-01")
++        self.assertEqual("ANSWER_NOT_AVAILABLE", failed.exception.code)
++
++    def test_intentional_repeat_vs_resend_of_same_submission(self):
++        a = self.cmd("chat_send", text="같은 문장", providers=["codex", "claude"], submission_id="repeat-0000001")
++        b = self.cmd("chat_send", text="같은 문장", providers=["codex", "claude"], submission_id="repeat-0000002")
++        self.wait(a["run_ids"] + b["run_ids"])
++        v = self.room.state()["version"]
++        j = self.journals()
++        resend = self.cmd("chat_send", text="같은 문장", providers=["codex", "claude"], submission_id="repeat-0000001")
++        st = self.room.state()
++        self.assertNotEqual(a["turn_id"], b["turn_id"])
++        self.assertEqual(4, len(set(a["run_ids"] + b["run_ids"])))
++        self.assertTrue(resend["duplicate"])
++        self.assertEqual(a["turn_id"], resend["turn_id"])
++        self.assertEqual(v, st["version"], "재전송은 새 이벤트를 만들지 않음")
++        self.assertEqual(2, len([t for t in st["chat_turns"] if t["text"] == "같은 문장"]))
++        self.assertEqual(j, self.journals(), "재전송은 새 하위 프로세스를 띄우지 않음")
++        with self.assertRaises(DomainError) as reused:
++            self.cmd("chat_send", text="다른 문장", providers=["codex", "claude"], submission_id="repeat-0000001")
++        self.assertEqual("SUBMISSION_ID_REUSED", reused.exception.code)
++
++    def test_cancel_then_late_response_stays_cancelled(self):
++        r = self.cmd("chat_send", text="취소 검사", providers=["codex", "claude"], submission_id="cancel-0000001", fixture_scenarios={"claude": "wait_for_cancel"})
++        claude_id = r["run_ids"][1]
++        end = time.time() + 5
++        while self.runs([claude_id])[0]["status"] != "running" and time.time() < end:
++            time.sleep(0.02)
++        # 제공자가 취소 신호를 받지 못하고 나중에 성공 응답을 돌려보내는 상황: 워커의 취소 신호를 떼어 두고 실제 기록 함수로 늦은 결과를 전달한다.
++        real_signal = self.room._cancel_events[claude_id]
++        self.room._cancel_events[claude_id] = threading.Event()
++        self.cmd("cancel_run", run_id=claude_id)
++        self.assertEqual("cancel_requested", self.runs([claude_id])[0]["status"])
++        late = {"status": "succeeded", "outcome": "succeeded", "response": "늦게 도착한 정상 응답", "finished_at": "2026-10-27T00:00:00Z"}
++        self.assertTrue(self.room._record_fixture_update(claude_id, late))
++        run = self.runs([claude_id])[0]
++        self.assertEqual("cancelled", run["status"])
++        self.assertIsNone(run["response"])
++        self.assertTrue(run["late_response_ignored"])
++        self.assertEqual("늦게 도착한 정상 응답", run["late_receipt"]["response"])
++        real_signal.set()
++        self.wait(r["run_ids"])
++        run = self.runs([claude_id])[0]
++        self.assertEqual("cancelled", run["status"], "워커의 이후 결과도 취소를 되돌리지 않음")
++        self.assertEqual("succeeded", self.runs([r["run_ids"][0]])[0]["status"])
++
++    def test_live_pending_prepares_without_execution(self):
++        r = self.cmd("chat_send", text="실제 요청 준비", providers=["codex", "claude", "antigravity"], mode="live_pending", submission_id="live-000000001",
++                     models={"claude": "사용자가 지정한 모델 문자열"})
++        st = self.room.state()
++        runs = self.runs(r["run_ids"])
++        self.assertEqual(["awaiting_approval"] * 3, [x["status"] for x in runs])
++        self.assertEqual([], self.journals(), "준비 단계는 전송 기록·프로세스를 만들지 않음")
++        self.assertEqual({}, {k: v for k, v in self.room._workers.items() if v.is_alive()})
++        plans = [p for p in st["execution_plans"] if p["run_id"] in r["run_ids"]]
++        self.assertTrue(all(p["authorization"]["state"] == "not_granted" for p in plans))
++        self.assertEqual("사용자가 지정한 모델 문자열", runs[1]["requested_model"])
++        self.assertIsNone(runs[0]["requested_model"])
++        with self.assertRaises(DomainError) as blocked:
++            self.cmd("invoke_provider", run_id=r["run_ids"][0])
++        self.assertEqual("EXTERNAL_EXECUTION_NOT_AUTHORIZED", blocked.exception.code)
++        self.cmd("cancel_run", run_id=r["run_ids"][0])
++        self.assertEqual("cancelled", self.runs([r["run_ids"][0]])[0]["status"])
++
++    def test_capacity_rejects_whole_request_without_partial_runs(self):
++        a = self.cmd("chat_send", text="오래 걸림 1", providers=["codex", "claude", "antigravity"], submission_id="cap-000000001",
++                     fixture_scenarios={"codex": "wait_for_cancel", "claude": "wait_for_cancel", "antigravity": "wait_for_cancel"})
++        b = self.cmd("chat_send", text="오래 걸림 2", providers=["codex", "claude", "antigravity"], submission_id="cap-000000002",
++                     fixture_scenarios={"codex": "wait_for_cancel", "claude": "wait_for_cancel", "antigravity": "wait_for_cancel"})
++        n = len(self.room.state()["runs"])
++        with self.assertRaises(DomainError) as full:
++            self.cmd("chat_send", text="넘침", providers=["codex"], submission_id="cap-000000003")
++        self.assertEqual("RUN_LIMIT", full.exception.code)
++        self.assertEqual(n, len(self.room.state()["runs"]))
++        for rid in a["run_ids"] + b["run_ids"]:
++            self.cmd("cancel_run", run_id=rid)
++        rs = self.wait(a["run_ids"] + b["run_ids"])
++        self.assertTrue(all(x["status"] == "cancelled" for x in rs))
++
++
++class ChatRestoreTests(unittest.TestCase):
++    def test_restart_restores_conversation_without_resending(self):
++        tmp = tempfile.TemporaryDirectory(); copy_dir = tempfile.TemporaryDirectory()
++        room = Workroom(tmp.name)
++        try:
++            v = room.state()["version"]
++            r = room.command("chat_send", v, {"text": "복원 검사", "providers": ["codex", "claude"], "submission_id": "restore-000001",
++                                              "fixture_scenarios": {"claude": "wait_for_cancel"}})
++            end = time.time() + 10
++            while time.time() < end:
++                rs = {x["id"]: x for x in room.state()["runs"]}
++                if rs[r["run_ids"][0]]["status"] == "succeeded" and rs[r["run_ids"][1]]["status"] == "running":
++                    break
++                time.sleep(0.05)
++            # 실행 중 상태 그대로 저장소를 복사 = 비정상 종료 뒤 재시작
++            shutil.copy(Path(tmp.name, "events.jsonl"), Path(copy_dir.name, "events.jsonl"))
++            shutil.copytree(Path(tmp.name, "transport-journal"), Path(copy_dir.name, "transport-journal"))
++        finally:
++            room.close(); tmp.cleanup()
++        journals_before = sorted(p.name for p in Path(copy_dir.name, "transport-journal").glob("*.jsonl"))
++        restored = Workroom(copy_dir.name)
++        try:
++            st = restored.state()
++            turn = next(t for t in st["chat_turns"] if t["id"] == r["turn_id"])
++            by = {x["provider"]: x for x in turn["runs"]}
++            self.assertEqual("succeeded", by["codex"]["status"])
++            self.assertIn("provider=codex", by["codex"]["response"])
++            self.assertTrue(by["codex"]["stored_before_session"])
++            self.assertIn(by["claude"]["status"], ("disconnected", "uncertain"))
++            self.assertIsNone(by["claude"]["response"])
++            run = next(x for x in st["runs"] if x["id"] == by["claude"]["run_id"])
++            self.assertIn("not be resent", run["error"])
++            self.assertEqual({}, {k: w for k, w in restored._workers.items() if w.is_alive()}, "재시작이 요청을 다시 보내지 않음")
++            self.assertEqual(journals_before, sorted(p.name for p in Path(copy_dir.name, "transport-journal").glob("*.jsonl")))
++            # 재시작 뒤 새 합성 응답은 '이전 세션 저장' 표시가 없음
++            v = st["version"]
++            n = restored.command("chat_send", v, {"text": "새 세션 질문", "providers": ["codex"], "submission_id": "restore-000002"})
++            end = time.time() + 10
++            while time.time() < end and next(x for x in restored.state()["runs"] if x["id"] == n["run_ids"][0])["status"] not in ("succeeded", "failed"):
++                time.sleep(0.05)
++            new_turn = next(t for t in restored.state()["chat_turns"] if t["id"] == n["turn_id"])
++            self.assertFalse(new_turn["runs"][0]["stored_before_session"])
++        finally:
++            restored.close(); copy_dir.cleanup()
++
++    def test_historical_record_and_synthetic_answer_are_distinguished(self):
++        tmp = tempfile.TemporaryDirectory()
++        registry = json.loads((HERE / "HISTORICAL-SOURCES.json").read_text(encoding="utf-8-sig"))
++        entry = registry["argon-coupon-past"]
++        entry["path"] = str(HERE / "historical" / "argon-coupon-audit.ndjson")
++        reg_path = Path(tmp.name, "registry.json"); reg_path.write_text(json.dumps(registry), encoding="utf-8")
++        room = Workroom(Path(tmp.name, "data"), history_registry_path=reg_path)
++        try:
++            room.command("import_history", room.state()["version"], {"source_id": "argon-coupon-past"})
++            r = room.command("chat_send", room.state()["version"], {"text": "새 질문", "providers": ["antigravity"], "submission_id": "hist-00000001"})
++            end = time.time() + 10
++            while time.time() < end and next(x for x in room.state()["runs"] if x["id"] == r["run_ids"][0])["status"] != "succeeded":
++                time.sleep(0.05)
++            st = room.state()
++            hist = [x for x in st["runs"] if x.get("run_kind") == "historical_import"]
++            chat = [x for x in st["runs"] if x.get("chat_turn_id")]
++            self.assertEqual(1, len(hist)); self.assertEqual(1, len(chat))
++            self.assertEqual("historical_external_execution", hist[0]["provenance"])
++            self.assertIsNone(hist[0].get("chat_turn_id"))
++            self.assertEqual("synthetic_fixture", chat[0]["provenance"])
++            self.assertEqual("synthetic", chat[0]["mode"])
++            self.assertTrue(all(run["run_id"] != hist[0]["id"] for t in st["chat_turns"] for run in t["runs"]), "과거 기록은 채팅 응답으로 섞이지 않음")
++        finally:
++            room.close(); tmp.cleanup()
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff -ruN a/workroom.py b/workroom.py
+--- a/workroom.py	2026-10-28 04:35:26.946683010 +0000
++++ b/workroom.py	2026-10-28 04:35:26.959207765 +0000
+@@ -2,6 +2,7 @@
+ from __future__ import annotations
+ 
+ import copy
++import re
+ import hashlib
+ import json
+ import os
+@@ -12,7 +13,14 @@
+ 
+ PROJECT_ID = "local-workroom"
+ MAX_UPLOAD = 256 * 1024
+-TABLES = ("instructions", "phases", "runs", "reviews", "contributions", "evidence", "uploads", "history_imports", "execution_plans")
++TABLES = ("instructions", "phases", "runs", "reviews", "contributions", "evidence", "uploads", "history_imports", "execution_plans", "chat_turns")
++# 통합 채팅: 내부 제공자 ID ↔ 화면 이름 ↔ 실제 도구. 모델 이름은 고정하지 않는다(요청 시 사용자가 지정하거나 실행 결과가 보고한 값만 표시).
++CHAT_PROVIDERS = {"codex": {"display": "ChatGPT", "tool": "Codex CLI"},
++                  "claude": {"display": "Claude", "tool": "Claude Code"},
++                  "antigravity": {"display": "Gemini", "tool": "Antigravity (agy)"}}
++CHAT_WORKER_LIMIT = 6
++CHAT_TERMINAL = ("succeeded", "failed", "cancelled", "disconnected", "timed_out", "interrupted", "uncertain")
++SUBMISSION_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{7,79}")
+ REVIEWERS = ("claude", "antigravity")
+ 
+ 
+@@ -71,6 +79,7 @@
+         self._cancel_events = {}
+         self._closed = False
+         self.storage_error = None
++        self.session_started_at = now()
+         self._state = initial_state()
+         self._lock_file = (self.data_dir / "writer.lock").open("a+b")
+         try:
+@@ -183,7 +192,8 @@
+                     "evidence": ("phase_id", "kind", "revision", "status", "provenance"),
+                     "uploads": ("name", "size", "status", "text", "received_bytes"),
+                     "history_imports": ("source_id", "run_id", "receipt", "provenance"),
+-                    "execution_plans": ("run_id", "provider", "snapshot", "sha256", "provenance")}
++                    "execution_plans": ("run_id", "provider", "snapshot", "sha256", "provenance"),
++                    "chat_turns": ("kind", "submission_id", "text", "providers", "run_ids", "mode", "context_snapshot", "context_sha256", "provenance")}
+         for table, records in entities.items():
+             if table not in required or not isinstance(records, list):
+                 raise ValueError("invalid entity table")
+@@ -203,13 +213,17 @@
+                     "evidence": {"kind": str, "status": str, "provenance": str},
+                     "uploads": {"name": str, "size": int, "status": str, "text": str, "received_bytes": int},
+                     "history_imports": {"source_id": str, "run_id": str, "receipt": dict, "provenance": str},
+-                    "execution_plans": {"run_id": str, "provider": str, "snapshot": dict, "sha256": str, "provenance": str}}
++                    "execution_plans": {"run_id": str, "provider": str, "snapshot": dict, "sha256": str, "provenance": str},
++                    "chat_turns": {"kind": str, "submission_id": str, "text": str, "mode": str, "context_snapshot": dict, "context_sha256": str, "provenance": str}}
+                 for field, expected in scalar_types[table].items():
+                     if field in record and type(record[field]) is not expected:
+                         raise ValueError("invalid " + table + " field type: " + field)
+                 for field in ("phase_id", "superseded_by", "source_event_id", "revision", "run_id"):
+                     if field in record and record[field] is not None and not isinstance(record[field], str):
+                         raise ValueError("invalid entity reference/revision")
++                if table == "chat_turns" and (record["kind"] not in ("ask", "review") or record["mode"] not in ("synthetic", "live_pending")
++                        or not all(isinstance(record[f], list) and all(isinstance(x, str) for x in record[f]) for f in ("providers", "run_ids"))):
++                    raise ValueError("invalid chat turn")
+                 for field in ("supersedes", "references", "changed_files", "block_reasons"):
+                     if field in record and (not isinstance(record[field], list) or not all(isinstance(x, str) for x in record[field])):
+                         raise ValueError("invalid entity text/reference list")
+@@ -258,7 +272,7 @@
+                     record["request_event_id"] = event["id"]
+                 if table == "runs" and kind == "review_received":
+                     record["response_event_id"] = event["id"]
+-                if table == "runs" and kind in ("run_prepared", "fixture_run_queued", "historical_run_imported"):
++                if table == "runs" and kind in ("run_prepared", "fixture_run_queued", "historical_run_imported", "chat_turn_submitted"):
+                     record["request_event_id"] = event["id"]
+                 if table == "runs" and kind == "fixture_run_finished":
+                     record["response_event_id"] = event["id"]
+@@ -284,7 +298,8 @@
+             state = copy.deepcopy(self._state)
+         state["capabilities"] = {"external_execution": False, "fixture_demo": True, "manual_import": True,
+                                  "uploads": True, "max_upload_bytes": MAX_UPLOAD,
+-                                 "prepare_run": True, "local_fixture_subprocess": True, "historical_import": True}
++                                 "prepare_run": True, "local_fixture_subprocess": True, "historical_import": True,
++                                 "chat_fanout": True, "chat_review": True, "chat_live_execution": False}
+         state["storage_writable"] = self.storage_error is None
+         if self.storage_error:
+             state["warnings"].append(self.storage_error)
+@@ -319,6 +334,14 @@
+         state["progress"] = {"verified_count": len(keys), "completion_keys": sorted(keys)}
+         registry = self._history_registry()
+         imported = {(item["source_id"], item.get("source_sha256")) for item in state["history_imports"]}
++        state["chat_turns"] = self._chat_projection(state)
++        state["chat_providers"] = [{"id": k, **v} for k, v in CHAT_PROVIDERS.items()]
++        chat_runs = {r["id"] for r in state["runs"] if r.get("chat_turn_id")}
++        for m, e in zip(state["messages"], state["events"]):
++            if e["type"] == "chat_turn_submitted":
++                m["chat_turn_id"] = e["payload"].get("chat_turn_id")
++            elif any(r.get("id") in chat_runs for r in e["payload"].get("entities", {}).get("runs", [])):
++                m["chat_internal"] = True
+         state["history_sources"] = [{"id": key, "label": value.get("label", key), "provider": value.get("provider"),
+                                     "sha256": value.get("sha256"), "already_imported": (key, value.get("sha256")) in imported,
+                                     "recorded_execution_at": value.get("metadata", {}).get("started_at") if isinstance(value.get("metadata"), dict) else None,
+@@ -413,7 +436,7 @@
+             "add_instruction", "start_phase", "request_reviews", "import_review", "add_contribution", "integrate_contribution",
+             "add_evidence", "advance_phase", "complete_project", "load_demo", "scenario_start", "scenario_advance", "scenario_fail",
+             "scenario_cancel", "begin_upload", "send_upload", "complete_upload", "cancel_upload", "send_message",
+-            "prepare_run", "import_history", "start_fixture_run", "cancel_run")}
++            "prepare_run", "import_history", "start_fixture_run", "cancel_run", "chat_send", "chat_review")}
+         if command == "invoke_provider":
+             fail("EXTERNAL_EXECUTION_NOT_AUTHORIZED", "No provider was invoked. Live execution requires future specific approval and transport implementation.", 403)
+         if command not in methods:
+@@ -543,6 +566,20 @@
+                 status = receipt.get("status")
+                 if status not in ("succeeded", "failed", "cancelled", "disconnected", "timed_out", "interrupted", "uncertain"):
+                     status = "disconnected"
++                if run["status"] == "cancel_requested" and status != "cancelled":
++                    # 취소 요청 뒤 도착한 결과는 취소된 실행을 완료로 되살리지 않는다. 원문은 별도 필드에만 보존.
++                    late = {"status": status, "response": receipt.get("response", receipt.get("report")), "error": receipt.get("error"),
++                            "finished_at": receipt.get("finished_at"), "arrived_at": now()}
++                    run.update(status="cancelled", outcome="cancelled", late_receipt=late, late_response_ignored=True,
++                        response=None, error="취소 요청 뒤 결과가 도착해 응답으로 반영하지 않음", finished_at=now(), receipt=receipt,
++                        provenance="synthetic_fixture" if run.get("mode") == "synthetic" else run.get("provenance"))
++                    self._emit("run_late_result_ignored", run["phase_id"], "synthetic_fixture" if run.get("mode") == "synthetic" else "manual_import",
++                        references=[run_id], message="[SYNTHETIC] 취소 뒤 도착한 결과를 기록만 하고 완료로 처리하지 않음: " + status, entities={"runs": [run]})
++                    try:
++                        self._persist_pending()
++                    except DomainError:
++                        return False
++                    return True
+                 run.update(status=status, receipt=receipt, outcome=receipt.get("outcome", "uncertain"),
+                     provenance="synthetic_fixture", eligible_current_phase=False, attested=False,
+                     conversation_id=receipt.get("conversation_id"), provider_run_id=receipt.get("provider_run_id"),
+@@ -586,6 +623,12 @@
+         if run["status"] in ("succeeded", "failed", "cancelled", "disconnected", "timed_out", "interrupted", "uncertain"):
+             self._command_result = {"run_id": run["id"], "unchanged": True}
+             return
++        if run.get("run_kind") == "prepared_live" and run.get("chat_turn_id") and run["status"] == "awaiting_approval":
++            run.update(status="cancelled", outcome="cancelled", cancel_requested_at=now(), finished_at=now(), dispatch_state="not_started")
++            self._emit("chat_prepared_run_cancelled", run["phase_id"], references=[run["id"]],
++                message="승인 대기 중이던 실제 요청 계획을 취소함(전송된 적 없음)", entities={"runs": [run]})
++            self._command_result = {"run_id": run["id"]}
++            return
+         if run.get("run_kind") != "local_fixture":
+             fail("NO_ACTIVE_FIXTURE", "Only an active local fixture worker can be cancelled", 409)
+         run.update(status="cancel_requested", cancel_requested_at=now())
+@@ -624,6 +667,173 @@
+                    entities={"runs": [run], "history_imports": [record]})
+         self._command_result = {"run_id": run["id"], "history_import_id": record["id"]}
+ 
++
++    # ------------------------------------------------------------------ 통합 채팅
++    @staticmethod
++    def chat_context_snapshot(state):
++        """한 번의 동시 요청에 쓰는 공통 맥락: 그 시점의 유효 프로젝트 지시만(대화 전체·파일은 넣지 않음)."""
++        items = [{"id": x["id"], "kind": x["kind"], "text": x["text"]} for x in Workroom._effective(state, None) if x.get("scope") == "project"]
++        snap = {"instruction_version": state["project"].get("instruction_version", 0), "instructions": items}
++        digest = hashlib.sha256(json.dumps(snap, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
++        return snap, digest
++
++    @staticmethod
++    def chat_context_text(snapshot):
++        lines = ["[Glance 공통 맥락 v" + str(snapshot["instruction_version"]) + "]"]
++        lines += ["- (" + x["kind"] + ") " + x["text"] for x in snapshot["instructions"]] or ["- (없음)"]
++        return "\n".join(lines)
++
++    @staticmethod
++    def chat_ask_prompt(question, snapshot):
++        return Workroom.chat_context_text(snapshot) + "\n\n[질문]\n" + question
++
++    @staticmethod
++    def chat_review_prompt(question, answer, source_provider, snapshot):
++        name = CHAT_PROVIDERS[source_provider]["display"]
++        return (Workroom.chat_context_text(snapshot) + "\n\n[원래 질문]\n" + question +
++                "\n\n[검토할 답변 · " + name + "]\n" + answer +
++                "\n\n[요청]\n위 답변을 원래 질문과 공통 맥락에 비추어 검토하고, 틀리거나 빠진 점과 근거를 짧게 적어 주세요.")
++
++    def _chat_submission(self, p, allowed):
++        if set(p) - allowed:
++            fail("INVALID_PAYLOAD", "Unexpected fields: " + ", ".join(sorted(set(p) - allowed)))
++        sid = p.get("submission_id")
++        if not isinstance(sid, str) or not SUBMISSION_ID.fullmatch(sid):
++            fail("INVALID_SUBMISSION_ID", "submission_id must be 8-80 letters, digits, _ or -")
++        existing = next((t for t in self._working["chat_turns"] if t["submission_id"] == sid), None)
++        mode = p.get("mode", "synthetic")
++        if mode not in ("synthetic", "live_pending"):
++            fail("INVALID_MODE", "mode must be synthetic or live_pending")
++        return sid, existing, mode
++
++    def _chat_runs(self, providers, prompt, mode, turn_id, scenarios, models, chat_role):
++        if mode == "synthetic":
++            alive = sum(x.is_alive() for x in self._workers.values())
++            if alive + len(providers) > CHAT_WORKER_LIMIT:
++                fail("RUN_LIMIT", "동시에 실행할 수 있는 합성 실행 수(" + str(CHAT_WORKER_LIMIT) + ")를 넘습니다. 일부를 기다리거나 취소하세요.", 409,
++                     active=alive, requested=len(providers))
++        runs, plans, launches = [], [], []
++        for provider in providers:
++            scenario = scenarios.get(provider, "success") if mode == "synthetic" else "success"
++            model = models.get(provider)
++            if mode == "synthetic":
++                run = self._run(provider, None, "synthetic", "queued", run_kind="local_fixture", scenario=scenario)
++            else:
++                run = self._run(provider, None, "live_pending", "awaiting_approval", run_kind="prepared_live")
++            run.update(chat_turn_id=turn_id, chat_role=chat_role, display_name=CHAT_PROVIDERS[provider]["display"],
++                       tool_name=CHAT_PROVIDERS[provider]["tool"])
++            bundle = self._transport_bundle(provider, run["id"], prompt, None, mode=mode, scenario=scenario, model=model)
++            snapshot = bundle["plan"]
++            plan = self._entity(id=snapshot["id"], run_id=run["id"], provider=provider, mode=mode, snapshot=snapshot, request=bundle["request"],
++                sha256=snapshot["plan_sha256"], binding_sha256=hashlib.sha256(json.dumps(bundle, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
++                provenance="synthetic_fixture" if mode == "synthetic" else "manual_import", immutable=True,
++                authorization={"state": "fixture_only" if mode == "synthetic" else "not_granted"})
++            run.update(plan_id=plan["id"], request_id=bundle["request"].get("id"), requested_model=model, plan=snapshot, plan_sha256=plan["sha256"],
++                       input_sha256=bundle["request"]["input_sha256"])
++            if mode == "live_pending":
++                run.update(preparation_notice="실제 요청 계획만 준비됨 · 별도 승인 전 전송하지 않음")
++            runs.append(run); plans.append(plan)
++            if mode == "synthetic":
++                launches.append((run["id"], bundle))
++        return runs, plans, launches
++
++    def _chat_send(self, p):
++        sid, existing, mode = self._chat_submission(p, {"text", "providers", "submission_id", "mode", "models", "fixture_scenarios"})
++        question = text(p.get("text"))
++        providers = p.get("providers")
++        aliases = {"chatgpt": "codex", "codex_dot": "codex", "gemini": "antigravity"}
++        if not isinstance(providers, list) or not providers or not all(isinstance(x, str) for x in providers):
++            fail("INVALID_PROVIDERS", "ChatGPT·Claude·Gemini 중 하나 이상을 고르세요")
++        providers = [aliases.get(x, x) for x in providers]
++        if any(x not in CHAT_PROVIDERS for x in providers) or len(set(providers)) != len(providers):
++            fail("INVALID_PROVIDERS", "알 수 없거나 중복된 제공자가 있습니다")
++        if existing is not None:
++            if existing["kind"] != "ask" or existing["text"] != question or existing["providers"] != providers or existing["mode"] != mode:
++                fail("SUBMISSION_ID_REUSED", "같은 submission_id로 다른 요청을 보낼 수 없습니다", 409, turn_id=existing["id"])
++            self._command_result = {"turn_id": existing["id"], "run_ids": existing["run_ids"], "duplicate": True, "unchanged": True}
++            return
++        scenarios = p.get("fixture_scenarios") or {}
++        models = p.get("models") or {}
++        if not isinstance(scenarios, dict) or not isinstance(models, dict):
++            fail("INVALID_PAYLOAD", "fixture_scenarios and models must be objects")
++        if mode != "synthetic" and scenarios:
++            fail("INVALID_PAYLOAD", "fixture_scenarios is only for synthetic mode")
++        for k, v in list(models.items()):
++            models[aliases.get(k, k)] = text(v, "model", 200, True)
++        snap, digest = self.chat_context_snapshot(self._working)
++        prompt = self.chat_ask_prompt(question, snap)
++        turn = self._entity(kind="ask", submission_id=sid, text=question, providers=providers, run_ids=[], mode=mode,
++                            context_snapshot=snap, context_sha256=digest, prompt_sha256=hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
++                            review_of=None, provenance="manual_import")
++        runs, plans, launches = self._chat_runs(providers, prompt, mode, turn["id"], scenarios, models, "answer")
++        turn["run_ids"] = [r["id"] for r in runs]
++        self._emit("chat_turn_submitted", None, message=question, entities={"chat_turns": [turn], "runs": runs, "execution_plans": plans},
++                   role="user", chat_turn_id=turn["id"], submission_id=sid)
++        self._command_result = {"turn_id": turn["id"], "run_ids": turn["run_ids"], "duplicate": False}
++        for run_id, bundle in launches:
++            self._after_commit.append(lambda r=run_id, b=copy.deepcopy(bundle): self._launch_fixture(r, b))
++
++    def _chat_review(self, p):
++        sid, existing, mode = self._chat_submission(p, {"source_run_id", "reviewer", "submission_id", "mode", "fixture_scenario", "model"})
++        source = self._get("runs", p.get("source_run_id"))
++        reviewer = {"chatgpt": "codex", "codex_dot": "codex", "gemini": "antigravity"}.get(p.get("reviewer"), p.get("reviewer"))
++        if existing is not None:
++            if existing["kind"] != "review" or existing["providers"] != [reviewer] or (existing["review_of"] or {}).get("run_id") != source["id"]:
++                fail("SUBMISSION_ID_REUSED", "같은 submission_id로 다른 요청을 보낼 수 없습니다", 409, turn_id=existing["id"])
++            self._command_result = {"turn_id": existing["id"], "run_ids": existing["run_ids"], "duplicate": True, "unchanged": True}
++            return
++        if not source.get("chat_turn_id"):
++            fail("NOT_A_CHAT_ANSWER", "통합 채팅의 답변만 교차 검토할 수 있습니다")
++        if source["status"] != "succeeded" or not isinstance(source.get("response"), str) or not source["response"].strip():
++            fail("ANSWER_NOT_AVAILABLE", "완료된 답변만 검토 대상으로 보낼 수 있습니다", 409)
++        if reviewer not in CHAT_PROVIDERS:
++            fail("INVALID_PROVIDERS", "검토할 제공자를 고르세요")
++        if reviewer == source["provider"]:
++            fail("SAME_PROVIDER_REVIEW", "답변한 제공자와 다른 제공자를 고르세요")
++        source_turn = self._get("chat_turns", source["chat_turn_id"])
++        root = source_turn if source_turn["kind"] == "ask" else self._get("chat_turns", source_turn["review_of"]["root_turn_id"])
++        snap, digest = source_turn["context_snapshot"], source_turn["context_sha256"]
++        answer = source["response"]
++        prompt = self.chat_review_prompt(root["text"], answer, source["provider"], snap)
++        scenario = p.get("fixture_scenario")
++        if mode != "synthetic" and scenario:
++            fail("INVALID_PAYLOAD", "fixture_scenario is only for synthetic mode")
++        turn = self._entity(kind="review", submission_id=sid, text=root["text"], providers=[reviewer], run_ids=[], mode=mode,
++                            context_snapshot=snap, context_sha256=digest, prompt_sha256=hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
++                            review_of={"run_id": source["id"], "turn_id": source_turn["id"], "root_turn_id": root["id"],
++                                       "source_provider": source["provider"], "answer_sha256": hashlib.sha256(answer.encode("utf-8")).hexdigest(),
++                                       "source_event_id": source.get("response_event_id")},
++                            provenance="manual_import")
++        runs, plans, launches = self._chat_runs([reviewer], prompt, mode, turn["id"], {reviewer: scenario} if scenario else {},
++                                                {reviewer: text(p.get("model"), "model", 200, True)} if p.get("model") else {}, "review")
++        turn["run_ids"] = [r["id"] for r in runs]
++        refs = [source["id"], source_turn["id"]] + ([source["response_event_id"]] if source.get("response_event_id") else [])
++        self._emit("chat_turn_submitted", None, references=refs,
++                   message="교차 검토 요청 · " + CHAT_PROVIDERS[source["provider"]]["display"] + " 답변 → " + CHAT_PROVIDERS[reviewer]["display"],
++                   entities={"chat_turns": [turn], "runs": runs, "execution_plans": plans}, role="user", chat_turn_id=turn["id"], submission_id=sid)
++        self._command_result = {"turn_id": turn["id"], "run_ids": turn["run_ids"], "duplicate": False}
++        for run_id, bundle in launches:
++            self._after_commit.append(lambda r=run_id, b=copy.deepcopy(bundle): self._launch_fixture(r, b))
++
++    def _chat_projection(self, state):
++        runs = {r["id"]: r for r in state["runs"]}
++        turns = []
++        for t in state["chat_turns"]:
++            items = []
++            for rid in t["run_ids"]:
++                r = runs.get(rid, {})
++                finished = r.get("finished_at")
++                items.append({"run_id": rid, "provider": r.get("provider"), "display_name": CHAT_PROVIDERS.get(r.get("provider"), {}).get("display"),
++                    "tool_name": CHAT_PROVIDERS.get(r.get("provider"), {}).get("tool"), "status": r.get("status"), "mode": r.get("mode"),
++                    "provenance": r.get("provenance"), "run_kind": r.get("run_kind"), "response": r.get("response") if r.get("status") == "succeeded" else None, "error": r.get("error"),
++                    "failure": r.get("failure"), "requested_model": r.get("requested_model"), "reported_model": r.get("reported_model"),
++                    "request_id": r.get("request_id"), "input_sha256": r.get("input_sha256"), "started_at": r.get("started_at"), "finished_at": finished,
++                    "late_response_ignored": bool(r.get("late_response_ignored")), "late_receipt": r.get("late_receipt"),
++                    "stored_before_session": bool(finished and finished < self.session_started_at),
++                    "response_event_id": r.get("response_event_id"), "preparation_notice": r.get("preparation_notice")})
++            turns.append({**copy.deepcopy(t), "runs": items})
++        return turns
++
+     def _send_message(self, p):
+         phase = p.get("task_id")
+         if phase is not None:

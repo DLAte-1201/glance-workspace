@@ -1,0 +1,3 @@
+Local upload QA fixture. This file contains only fabricated project notes.
+Latest correction: phase completion does not mean the entire project is complete.
+Expected reviewers: code reviewer and context reviewer.

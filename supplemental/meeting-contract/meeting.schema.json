@@ -1,0 +1,1824 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:glance:meeting-contract:v0.2",
+  "title": "Glance Next Action Meeting Contract Schema",
+  "description": "JSON Schema Draft 2020-12 contract for Glance Next Action Meeting (v0.1 & v0.2 unified). Root entry validates a TestSuite of synthetic test cases, while each $defs entry can be used directly as an entry point for individual payloads.",
+  "$ref": "#/$defs/TestSuite",
+  "$defs": {
+    "NonEmptyString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ParticipantSlot": {
+      "type": "string",
+      "enum": [
+        "slot_a",
+        "slot_b",
+        "slot_c"
+      ]
+    },
+    "MeetingMode": {
+      "type": "string",
+      "enum": [
+        "REUSE_IF_AVAILABLE",
+        "FORCE_NEW_MEETING"
+      ]
+    },
+    "IssueType": {
+      "type": "string",
+      "description": "Single atomic issue type. Compound strings like 'PRIORITY_DIFF & USER_PREFERENCE' are strictly prohibited.",
+      "enum": [
+        "FACT_CONFLICT",
+        "PRIORITY_DIFF",
+        "USER_PREFERENCE"
+      ]
+    },
+    "ProposalStatus": {
+      "type": "string",
+      "enum": [
+        "OK",
+        "INSUFFICIENT_INFO_REPORTED",
+        "TIMEOUT",
+        "ERROR",
+        "SCHEMA_INVALID",
+        "REJECTED_UNKNOWN_SOURCE_ID",
+        "REJECTED_UNVERIFIED_AS_EVIDENCE",
+        "OK_PRIMARY_FILTERED_IN_PROGRESS",
+        "OK_PRIMARY_FILTERED_ON_HOLD",
+        "OK_PRIMARY_FILTERED_CANCELLED",
+        "REJECTED_ALL_PROPOSALS_FILTERED"
+      ]
+    },
+    "ReviewStatus": {
+      "type": "string",
+      "enum": [
+        "OK",
+        "SKIPPED_NO_ISSUES",
+        "SKIPPED_INSUFFICIENT_PARTICIPANTS",
+        "SKIPPED_INSUFFICIENT_EVIDENCE",
+        "SKIPPED_PRIOR_FAILURE",
+        "TIMEOUT",
+        "ERROR",
+        "SCHEMA_INVALID"
+      ]
+    },
+    "TerminalStatus": {
+      "type": "string",
+      "enum": [
+        "REUSED_EXISTING_CARD",
+        "COMPLETED_RESOLVED",
+        "COMPLETED_PARTIAL",
+        "TERMINATED_UNRESOLVED",
+        "TERMINATED_INSUFFICIENT_EVIDENCE",
+        "ABORTED_STATE_CHANGED",
+        "ABORTED_USER_CANCELLED",
+        "ABORTED_DUPLICATE_REQUEST",
+        "ABORTED_BUDGET_EXCEEDED"
+      ]
+    },
+    "SemanticSupportStatus": {
+      "type": "string",
+      "description": "Canonical field name: semantic_support_status.",
+      "enum": [
+        "CROSS_REVIEWED_BY_MODELS",
+        "SEMANTIC_SUPPORT_UNVERIFIED",
+        "SEMANTIC_CONFLICT_DETECTED"
+      ]
+    },
+    "RecentResultItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_id",
+        "summary",
+        "artifact_ref",
+        "recorded_at",
+        "trust_note"
+      ],
+      "properties": {
+        "source_id": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "summary": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "artifact_ref": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "recorded_at": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "trust_note": {
+          "$ref": "#/$defs/NonEmptyString"
+        }
+      }
+    },
+    "VerifiedFactItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fact_id",
+        "statement",
+        "source_ids"
+      ],
+      "properties": {
+        "fact_id": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "statement": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "source_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/NonEmptyString"
+          }
+        }
+      }
+    },
+    "SubmitterClaimItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "claim_id",
+        "statement",
+        "submitted_by",
+        "source_ids"
+      ],
+      "properties": {
+        "claim_id": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "statement": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "submitted_by": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "source_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/NonEmptyString"
+          }
+        }
+      }
+    },
+    "UnverifiedItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "item_id",
+        "question_or_gap",
+        "missing_data"
+      ],
+      "properties": {
+        "item_id": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "question_or_gap": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "missing_data": {
+          "$ref": "#/$defs/NonEmptyString"
+        }
+      }
+    },
+    "InProgressTaskItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "task_id",
+        "title",
+        "assignee",
+        "started_at",
+        "scope"
+      ],
+      "properties": {
+        "task_id": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "title": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "assignee": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "started_at": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "scope": {
+          "$ref": "#/$defs/NonEmptyString"
+        }
+      }
+    },
+    "OnHoldItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "item_id",
+        "title",
+        "reason",
+        "hold_since",
+        "resume_condition"
+      ],
+      "properties": {
+        "item_id": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "title": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "reason": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "hold_since": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "resume_condition": {
+          "$ref": "#/$defs/NonEmptyString"
+        }
+      }
+    },
+    "CancelledItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "item_id",
+        "title",
+        "reason",
+        "cancelled_at"
+      ],
+      "properties": {
+        "item_id": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "title": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "reason": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "cancelled_at": {
+          "$ref": "#/$defs/NonEmptyString"
+        }
+      }
+    },
+    "CommonInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "meeting_id",
+        "request_id",
+        "meeting_mode",
+        "project_id",
+        "question",
+        "state_version",
+        "as_of",
+        "goal",
+        "current_stage",
+        "recent_results",
+        "epistemic_state",
+        "work_status",
+        "permissions",
+        "budget"
+      ],
+      "properties": {
+        "meeting_id": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "request_id": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "meeting_mode": {
+          "$ref": "#/$defs/MeetingMode"
+        },
+        "project_id": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "question": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "state_version": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "as_of": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "goal": {
+          "type": "string"
+        },
+        "current_stage": {
+          "type": "string"
+        },
+        "recent_results": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RecentResultItem"
+          }
+        },
+        "epistemic_state": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "verified_facts",
+            "submitter_claims",
+            "unverified_items"
+          ],
+          "properties": {
+            "verified_facts": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/VerifiedFactItem"
+              }
+            },
+            "submitter_claims": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/SubmitterClaimItem"
+              }
+            },
+            "unverified_items": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/UnverifiedItem"
+              }
+            }
+          }
+        },
+        "work_status": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "in_progress_tasks",
+            "on_hold_items",
+            "cancelled_items"
+          ],
+          "properties": {
+            "in_progress_tasks": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/InProgressTaskItem"
+              }
+            },
+            "on_hold_items": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/OnHoldItem"
+              }
+            },
+            "cancelled_items": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/CancelledItem"
+              }
+            }
+          }
+        },
+        "permissions": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "approved_scopes",
+            "requires_separate_approval"
+          ],
+          "properties": {
+            "approved_scopes": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/NonEmptyString"
+              }
+            },
+            "requires_separate_approval": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/NonEmptyString"
+              }
+            }
+          }
+        },
+        "budget": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "max_duration_ms",
+            "per_call_timeout_ms",
+            "max_calls",
+            "max_output_tokens_per_call"
+          ],
+          "properties": {
+            "max_duration_ms": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "per_call_timeout_ms": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "max_calls": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 8
+            },
+            "max_output_tokens_per_call": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        }
+      }
+    },
+    "ProposalItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "proposal_id",
+        "title",
+        "related_work_item_ids",
+        "purpose",
+        "evidence_source_ids",
+        "referenced_claim_or_gap_ids",
+        "unverified_assumptions",
+        "expected_deliverables",
+        "prerequisites",
+        "completion_criteria",
+        "requires_approval",
+        "approval_reason"
+      ],
+      "properties": {
+        "proposal_id": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "title": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "related_work_item_ids": {
+          "type": "array",
+          "description": "Canonical field name: related_work_item_ids.",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/NonEmptyString"
+          }
+        },
+        "purpose": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "evidence_source_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/NonEmptyString"
+          }
+        },
+        "referenced_claim_or_gap_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/NonEmptyString"
+          }
+        },
+        "unverified_assumptions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/NonEmptyString"
+          }
+        },
+        "expected_deliverables": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/NonEmptyString"
+          }
+        },
+        "prerequisites": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/NonEmptyString"
+          }
+        },
+        "completion_criteria": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/NonEmptyString"
+          }
+        },
+        "requires_approval": {
+          "type": "boolean"
+        },
+        "approval_reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "requires_approval": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "approval_reason": {
+                "$ref": "#/$defs/NonEmptyString"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "approval_reason": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "DiscoveredGapItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Newly discovered information gap when existing uv_*/sc_* items do not cover the missing context. Never treated as verified fact or existing source.",
+      "required": [
+        "gap_temp_id",
+        "question_or_gap",
+        "missing_data",
+        "related_source_ids"
+      ],
+      "properties": {
+        "gap_temp_id": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "question_or_gap": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "missing_data": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "related_source_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/NonEmptyString"
+          }
+        }
+      }
+    },
+    "InsufficientInfoReport": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Report of insufficient information. Either missing_info_ids (existing uv_*/sc_* IDs) or discovered_gaps (newly identified gaps) must be non-empty.",
+      "required": [
+        "reason_summary",
+        "missing_info_ids",
+        "discovered_gaps",
+        "required_evidence_descriptions"
+      ],
+      "properties": {
+        "reason_summary": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "missing_info_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/NonEmptyString"
+          }
+        },
+        "discovered_gaps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DiscoveredGapItem"
+          }
+        },
+        "required_evidence_descriptions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/NonEmptyString"
+          }
+        }
+      },
+      "anyOf": [
+        {
+          "properties": {
+            "missing_info_ids": {
+              "minItems": 1
+            }
+          }
+        },
+        {
+          "properties": {
+            "discovered_gaps": {
+              "minItems": 1
+            }
+          }
+        }
+      ]
+    },
+    "IndependentProposalPair": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "meeting_id",
+        "state_version",
+        "participant_slot",
+        "response_type",
+        "primary_proposal",
+        "alternative_proposal",
+        "insufficient_info_detail",
+        "detected_missing_info"
+      ],
+      "properties": {
+        "meeting_id": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "state_version": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "participant_slot": {
+          "$ref": "#/$defs/ParticipantSlot"
+        },
+        "response_type": {
+          "const": "PROPOSAL_PAIR"
+        },
+        "primary_proposal": {
+          "$ref": "#/$defs/ProposalItem"
+        },
+        "alternative_proposal": {
+          "$ref": "#/$defs/ProposalItem"
+        },
+        "insufficient_info_detail": {
+          "type": "null"
+        },
+        "detected_missing_info": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/NonEmptyString"
+          }
+        }
+      }
+    },
+    "IndependentInsufficientInfo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "meeting_id",
+        "state_version",
+        "participant_slot",
+        "response_type",
+        "primary_proposal",
+        "alternative_proposal",
+        "insufficient_info_detail",
+        "detected_missing_info"
+      ],
+      "properties": {
+        "meeting_id": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "state_version": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "participant_slot": {
+          "$ref": "#/$defs/ParticipantSlot"
+        },
+        "response_type": {
+          "const": "INSUFFICIENT_INFO_REPORT"
+        },
+        "primary_proposal": {
+          "type": "null"
+        },
+        "alternative_proposal": {
+          "type": "null"
+        },
+        "insufficient_info_detail": {
+          "$ref": "#/$defs/InsufficientInfoReport"
+        },
+        "detected_missing_info": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/NonEmptyString"
+          }
+        }
+      }
+    },
+    "IndependentProposal": {
+      "description": "Discriminated union of IndependentProposalPair and IndependentInsufficientInfo.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/IndependentProposalPair"
+        },
+        {
+          "$ref": "#/$defs/IndependentInsufficientInfo"
+        }
+      ]
+    },
+    "ProposalClusterItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cluster_id",
+        "proposal_ids",
+        "summary",
+        "filtered_out_reason"
+      ],
+      "properties": {
+        "cluster_id": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "proposal_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/NonEmptyString"
+          }
+        },
+        "summary": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "filtered_out_reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "ExtractedIssueItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "issue_id",
+        "issue_type",
+        "related_proposal_ids",
+        "description"
+      ],
+      "properties": {
+        "issue_id": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "issue_type": {
+          "$ref": "#/$defs/IssueType"
+        },
+        "related_proposal_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/NonEmptyString"
+          }
+        },
+        "description": {
+          "$ref": "#/$defs/NonEmptyString"
+        }
+      }
+    },
+    "ExtractedIssues": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "meeting_id",
+        "state_version",
+        "clustered_proposals",
+        "issues",
+        "skip_cross_review"
+      ],
+      "properties": {
+        "meeting_id": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "state_version": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "clustered_proposals": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ProposalClusterItem"
+          }
+        },
+        "issues": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ExtractedIssueItem"
+          }
+        },
+        "skip_cross_review": {
+          "type": "boolean"
+        }
+      }
+    },
+    "IssueReviewItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "issue_id",
+        "target_proposal_id",
+        "decision",
+        "rationale",
+        "modification_detail",
+        "derived_proposal_id",
+        "parent_proposal_ids",
+        "evidence_source_ids"
+      ],
+      "properties": {
+        "issue_id": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "target_proposal_id": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "decision": {
+          "type": "string",
+          "enum": [
+            "ADOPT",
+            "MODIFY",
+            "REJECT"
+          ]
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 1,
+          "not": {
+            "pattern": "^\\s*(동의합니다|찬성합니다|좋은 생각입니다)\\.?\\s*$"
+          }
+        },
+        "modification_detail": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "derived_proposal_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "When decision == MODIFY and a modified/merged proposal ID is registered at CROSS_REVIEW stage, its new ID is declared here; otherwise null."
+        },
+        "parent_proposal_ids": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "description": "When derived_proposal_id is non-null, lists the registered parent proposal IDs from INDEPENDENT_PROPOSAL (minItems: 1); otherwise null.",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/NonEmptyString"
+          }
+        },
+        "evidence_source_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/NonEmptyString"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "decision": {
+                "const": "MODIFY"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "modification_detail": {
+                "$ref": "#/$defs/NonEmptyString"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "modification_detail": {
+                "type": "null"
+              },
+              "derived_proposal_id": {
+                "type": "null"
+              },
+              "parent_proposal_ids": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "derived_proposal_id": {
+                "type": "string"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "parent_proposal_ids": {
+                "type": "array",
+                "minItems": 1
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "parent_proposal_ids": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "CrossReview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "meeting_id",
+        "state_version",
+        "reviewer_slot",
+        "issue_reviews",
+        "preferred_final_proposal_id"
+      ],
+      "properties": {
+        "meeting_id": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "state_version": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "reviewer_slot": {
+          "$ref": "#/$defs/ParticipantSlot"
+        },
+        "issue_reviews": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/IssueReviewItem"
+          }
+        },
+        "preferred_final_proposal_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "DerivedProposalRegistration": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Explicit lineage registration for modified or merged proposals created during CROSS_REVIEW or FINAL_SYNTHESIS.",
+      "required": [
+        "proposal_id",
+        "parent_proposal_ids",
+        "registered_at_stage",
+        "created_by_slot",
+        "modification_summary"
+      ],
+      "properties": {
+        "proposal_id": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "parent_proposal_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/NonEmptyString"
+          }
+        },
+        "registered_at_stage": {
+          "type": "string",
+          "enum": [
+            "CROSS_REVIEW",
+            "FINAL_SYNTHESIS"
+          ]
+        },
+        "created_by_slot": {
+          "type": "string",
+          "enum": [
+            "slot_a",
+            "slot_b",
+            "slot_c",
+            "SYSTEM_SYNTHESIZER"
+          ]
+        },
+        "modification_summary": {
+          "$ref": "#/$defs/NonEmptyString"
+        }
+      }
+    },
+    "ParticipantStatusRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "slot",
+        "proposal_status",
+        "review_status"
+      ],
+      "properties": {
+        "slot": {
+          "$ref": "#/$defs/ParticipantSlot"
+        },
+        "proposal_status": {
+          "$ref": "#/$defs/ProposalStatus"
+        },
+        "review_status": {
+          "$ref": "#/$defs/ReviewStatus"
+        }
+      }
+    },
+    "ParticipationCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Explicitly separates proposal_success_count, review_success_count, review_skipped_count, and final_effective_participant_count.",
+      "required": [
+        "proposal_success_count",
+        "insufficient_info_report_count",
+        "review_success_count",
+        "review_skipped_count",
+        "final_effective_participant_count"
+      ],
+      "properties": {
+        "proposal_success_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        },
+        "insufficient_info_report_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        },
+        "review_success_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        },
+        "review_skipped_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        },
+        "final_effective_participant_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        }
+      }
+    },
+    "RecommendedAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_proposal_id",
+        "parent_proposal_ids",
+        "title",
+        "why_now",
+        "summary"
+      ],
+      "properties": {
+        "source_proposal_id": {
+          "$ref": "#/$defs/NonEmptyString",
+          "description": "Must match either an original proposal_id from INDEPENDENT_PROPOSAL or a registered derived proposal_id in derived_proposals."
+        },
+        "parent_proposal_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/NonEmptyString"
+          }
+        },
+        "title": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "why_now": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "summary": {
+          "$ref": "#/$defs/NonEmptyString"
+        }
+      }
+    },
+    "UnadoptedAlternativeItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "proposal_id",
+        "title",
+        "proposed_by",
+        "reason_not_adopted"
+      ],
+      "properties": {
+        "proposal_id": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "title": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "proposed_by": {
+          "$ref": "#/$defs/ParticipantSlot"
+        },
+        "reason_not_adopted": {
+          "$ref": "#/$defs/NonEmptyString"
+        }
+      }
+    },
+    "RemainingDisagreementItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "issue_id",
+        "summary",
+        "positions_by_slot"
+      ],
+      "properties": {
+        "issue_id": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "summary": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "positions_by_slot": {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "properties": {
+            "slot_a": {
+              "$ref": "#/$defs/NonEmptyString"
+            },
+            "slot_b": {
+              "$ref": "#/$defs/NonEmptyString"
+            },
+            "slot_c": {
+              "$ref": "#/$defs/NonEmptyString"
+            }
+          }
+        }
+      }
+    },
+    "FinalTaskCard": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "card_id",
+        "meeting_id",
+        "state_version_used",
+        "terminal_status",
+        "budget_usage",
+        "verification_scope_summary",
+        "participation_counts",
+        "responded_participants",
+        "derived_proposals",
+        "recommended_action",
+        "evidence_and_assumptions",
+        "deliverables_and_verification",
+        "assignment_and_dependencies",
+        "execution_and_approval",
+        "unadopted_alternatives",
+        "remaining_disagreements",
+        "next_resolution_requirements",
+        "safety_disclaimers"
+      ],
+      "properties": {
+        "card_id": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "meeting_id": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "state_version_used": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "terminal_status": {
+          "$ref": "#/$defs/TerminalStatus"
+        },
+        "budget_usage": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "max_calls",
+            "calls_reserved",
+            "calls_completed",
+            "blocked_excess_calls"
+          ],
+          "properties": {
+            "max_calls": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 8
+            },
+            "calls_reserved": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 8
+            },
+            "calls_completed": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 8
+            },
+            "blocked_excess_calls": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "verification_scope_summary": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "rule_engine_checks",
+            "semantic_support_status"
+          ],
+          "properties": {
+            "rule_engine_checks": {
+              "type": "string",
+              "enum": [
+                "PASSED",
+                "FAILED",
+                "NOT_RUN"
+              ]
+            },
+            "semantic_support_status": {
+              "$ref": "#/$defs/SemanticSupportStatus"
+            }
+          }
+        },
+        "participation_counts": {
+          "$ref": "#/$defs/ParticipationCounts"
+        },
+        "responded_participants": {
+          "type": "array",
+          "maxItems": 3,
+          "items": {
+            "$ref": "#/$defs/ParticipantStatusRecord"
+          }
+        },
+        "derived_proposals": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DerivedProposalRegistration"
+          }
+        },
+        "recommended_action": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/RecommendedAction"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "evidence_and_assumptions": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "verified_evidence_ids",
+            "unverified_assumptions",
+            "discovered_gaps",
+            "conflicting_evidence_notes"
+          ],
+          "properties": {
+            "verified_evidence_ids": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/NonEmptyString"
+              }
+            },
+            "unverified_assumptions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/NonEmptyString"
+              }
+            },
+            "discovered_gaps": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/DiscoveredGapItem"
+              }
+            },
+            "conflicting_evidence_notes": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/NonEmptyString"
+              }
+            }
+          }
+        },
+        "deliverables_and_verification": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "expected_deliverables",
+            "completion_criteria"
+          ],
+          "properties": {
+            "expected_deliverables": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/NonEmptyString"
+              }
+            },
+            "completion_criteria": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/NonEmptyString"
+              }
+            }
+          }
+        },
+        "assignment_and_dependencies": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "recommended_assignee_role",
+            "assignment_status",
+            "prerequisites"
+          ],
+          "properties": {
+            "recommended_assignee_role": {
+              "$ref": "#/$defs/NonEmptyString"
+            },
+            "assignment_status": {
+              "const": "RECOMMENDED_ONLY_NOT_ACCEPTED"
+            },
+            "prerequisites": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/NonEmptyString"
+              }
+            }
+          }
+        },
+        "execution_and_approval": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "executable_within_current_approval",
+            "additional_approvals_required",
+            "requires_user_approval_before_start",
+            "card_is_execution_approval"
+          ],
+          "properties": {
+            "executable_within_current_approval": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/NonEmptyString"
+              }
+            },
+            "additional_approvals_required": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/NonEmptyString"
+              }
+            },
+            "requires_user_approval_before_start": {
+              "type": "boolean"
+            },
+            "card_is_execution_approval": {
+              "const": false
+            }
+          }
+        },
+        "unadopted_alternatives": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/UnadoptedAlternativeItem"
+          }
+        },
+        "remaining_disagreements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RemainingDisagreementItem"
+          }
+        },
+        "next_resolution_requirements": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "required_additional_evidence",
+            "required_user_decisions"
+          ],
+          "properties": {
+            "required_additional_evidence": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/NonEmptyString"
+              }
+            },
+            "required_user_decisions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/NonEmptyString"
+              }
+            }
+          }
+        },
+        "safety_disclaimers": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "consensus_is_not_fact_verification",
+            "recommendation_is_not_task_start",
+            "card_creation_is_not_approval"
+          ],
+          "properties": {
+            "consensus_is_not_fact_verification": {
+              "const": true
+            },
+            "recommendation_is_not_task_start": {
+              "const": true
+            },
+            "card_creation_is_not_approval": {
+              "const": true
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "terminal_status": {
+                "enum": [
+                  "COMPLETED_RESOLVED",
+                  "COMPLETED_PARTIAL",
+                  "REUSED_EXISTING_CARD"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "recommended_action": {
+                "$ref": "#/$defs/RecommendedAction"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "recommended_action": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "PriorHistoryState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "active_request_ids",
+        "completed_request_ids",
+        "existing_completed_cards"
+      ],
+      "properties": {
+        "active_request_ids": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/NonEmptyString"
+          }
+        },
+        "completed_request_ids": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/NonEmptyString"
+          }
+        },
+        "existing_completed_cards": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "project_id",
+              "state_version",
+              "normalized_question",
+              "card_id",
+              "meeting_id"
+            ],
+            "properties": {
+              "project_id": {
+                "$ref": "#/$defs/NonEmptyString"
+              },
+              "state_version": {
+                "$ref": "#/$defs/NonEmptyString"
+              },
+              "normalized_question": {
+                "$ref": "#/$defs/NonEmptyString"
+              },
+              "card_id": {
+                "$ref": "#/$defs/NonEmptyString"
+              },
+              "meeting_id": {
+                "$ref": "#/$defs/NonEmptyString"
+              }
+            }
+          }
+        }
+      }
+    },
+    "SimulationEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "seq",
+        "event_type",
+        "stage",
+        "detail"
+      ],
+      "properties": {
+        "seq": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "event_type": {
+          "type": "string",
+          "enum": [
+            "RECEIVE_REQUEST",
+            "LOCK_CONTEXT",
+            "RESERVE_BUDGET",
+            "BUDGET_RESERVATION_BLOCKED",
+            "DISPATCH_CALLS",
+            "SLOT_RESPONSE_OK",
+            "SLOT_RESPONSE_TIMEOUT",
+            "SLOT_RESPONSE_ERROR",
+            "SLOT_RESPONSE_INVALID",
+            "EXTRACT_ISSUES",
+            "SKIP_CROSS_REVIEW",
+            "USER_CANCEL_SIGNAL",
+            "STATE_VERSION_CHANGED_SIGNAL",
+            "LATE_RESPONSE_ARRIVED",
+            "FINALIZE_CARD"
+          ]
+        },
+        "stage": {
+          "type": "string",
+          "enum": [
+            "INIT",
+            "LOCKING_CONTEXT",
+            "INDEPENDENT_PROPOSAL",
+            "ISSUE_EXTRACTION",
+            "CROSS_REVIEW",
+            "FINAL_SYNTHESIS",
+            "TERMINAL"
+          ]
+        },
+        "slot": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "slot_a",
+            "slot_b",
+            "slot_c",
+            "SYSTEM",
+            null
+          ]
+        },
+        "calls_count": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "new_state_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "detail": {
+          "$ref": "#/$defs/NonEmptyString"
+        }
+      }
+    },
+    "TestCase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "case_id",
+        "category",
+        "purpose",
+        "target_schema_def",
+        "prior_history",
+        "common_input",
+        "synthetic_proposals",
+        "extracted_issues",
+        "synthetic_reviews",
+        "event_sequence",
+        "final_task_card",
+        "malformed_payload_under_test",
+        "expected_schema_valid",
+        "expected_contract_valid",
+        "expected_violation_codes",
+        "expected_terminal_status",
+        "expected_recommended_action_present",
+        "expected_participation_counts",
+        "expected_calls_reserved",
+        "expected_simulated_dispatched_calls",
+        "expected_blocked_excess_calls",
+        "late_response_handling",
+        "late_response_reason"
+      ],
+      "properties": {
+        "case_id": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "category": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "purpose": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "target_schema_def": {
+          "type": "string",
+          "description": "Which $defs entry is the primary target for schema validation in this test case.",
+          "enum": [
+            "TestCase",
+            "CommonInput",
+            "IndependentProposal",
+            "ExtractedIssues",
+            "CrossReview",
+            "FinalTaskCard"
+          ]
+        },
+        "prior_history": {
+          "$ref": "#/$defs/PriorHistoryState"
+        },
+        "common_input": {
+          "$ref": "#/$defs/CommonInput"
+        },
+        "synthetic_proposals": {
+          "type": "array",
+          "maxItems": 3,
+          "items": {
+            "$ref": "#/$defs/IndependentProposal"
+          }
+        },
+        "extracted_issues": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/ExtractedIssues"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "synthetic_reviews": {
+          "type": "array",
+          "maxItems": 3,
+          "items": {
+            "$ref": "#/$defs/CrossReview"
+          }
+        },
+        "event_sequence": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/SimulationEvent"
+          }
+        },
+        "final_task_card": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/FinalTaskCard"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "malformed_payload_under_test": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "Only populated when expected_schema_valid is false; holds the raw malformed payload to be validated against target_schema_def."
+        },
+        "expected_schema_valid": {
+          "type": "boolean"
+        },
+        "expected_contract_valid": {
+          "type": "boolean"
+        },
+        "expected_violation_codes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/NonEmptyString"
+          }
+        },
+        "expected_terminal_status": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/TerminalStatus"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "expected_recommended_action_present": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "expected_participation_counts": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/ParticipationCounts"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "expected_calls_reserved": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "expected_simulated_dispatched_calls": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "Expected count of simulated model calls dispatched (never actual API calls)."
+        },
+        "expected_blocked_excess_calls": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "late_response_handling": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "ADOPTED",
+            "DISCARDED",
+            null
+          ]
+        },
+        "late_response_reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "TestSuite": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "suite_version",
+        "schema_ref",
+        "synthetic_notice",
+        "test_cases"
+      ],
+      "properties": {
+        "suite_version": {
+          "const": "0.2.0"
+        },
+        "schema_ref": {
+          "const": "meeting.schema.json"
+        },
+        "synthetic_notice": {
+          "$ref": "#/$defs/NonEmptyString"
+        },
+        "test_cases": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/TestCase"
+          }
+        }
+      }
+    }
+  }
+}

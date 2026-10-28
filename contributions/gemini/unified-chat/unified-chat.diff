@@ -1,0 +1,1499 @@
+--- a/workroom.py
++++ b/workroom.py
+@@ -14,6 +14,11 @@
+ MAX_UPLOAD = 256 * 1024
+ TABLES = ("instructions", "phases", "runs", "reviews", "contributions", "evidence", "uploads", "history_imports", "execution_plans")
+ REVIEWERS = ("claude", "antigravity")
++PROVIDER_ALIASES = {"codex": "codex", "codex_dot": "codex", "claude": "claude", "antigravity": "antigravity", "gemini": "antigravity"}
++PROVIDER_DISPLAY_NAMES = {"codex": "ChatGPT", "claude": "Claude", "antigravity": "Gemini"}
++PROVIDER_CONNECTOR_IDS = {"codex": "codex_dot", "claude": "claude", "antigravity": "antigravity"}
++FIXTURE_SCENARIO_ALIASES = {"error": "nonzero_exit", "malformed": "malformed_output", "mismatch": "conversation_mismatch", "cancel": "wait_for_cancel"}
++ALLOWED_FIXTURE_SCENARIOS = ("success", "nonzero_exit", "malformed_output", "conversation_mismatch", "timeout", "output_overflow", "wait_for_cancel")
+ 
+ 
+ def now():
+@@ -43,6 +48,21 @@
+     if not isinstance(value, str) or not value.strip() or len(value.encode("utf-8")) > limit:
+         fail("INVALID_FIELD", field + " must be nonempty bounded UTF-8 text", field=field, max_bytes=limit)
+     return value
++
++
++def normalize_provider(value):
++    if not isinstance(value, str) or value not in PROVIDER_ALIASES:
++        fail("INVALID_PROVIDER", "Choose codex, claude or antigravity")
++    return PROVIDER_ALIASES[value]
++
++
++def normalize_scenario(value):
++    if not isinstance(value, str):
++        fail("INVALID_SCENARIO", "Choose a fixed local fixture scenario")
++    scenario = FIXTURE_SCENARIO_ALIASES.get(value, value)
++    if scenario not in ALLOWED_FIXTURE_SCENARIOS:
++        fail("INVALID_SCENARIO", "Choose a fixed local fixture scenario")
++    return scenario
+ 
+ 
+ def initial_state():
+@@ -259,7 +279,8 @@
+                 if table == "runs" and kind == "review_received":
+                     record["response_event_id"] = event["id"]
+                 if table == "runs" and kind in ("run_prepared", "fixture_run_queued", "historical_run_imported"):
+-                    record["request_event_id"] = event["id"]
++                    if record.get("request_event_id") is None:
++                        record["request_event_id"] = event["id"]
+                 if table == "runs" and kind == "fixture_run_finished":
+                     record["response_event_id"] = event["id"]
+         event = copy.deepcopy(event)
+@@ -284,7 +305,8 @@
+             state = copy.deepcopy(self._state)
+         state["capabilities"] = {"external_execution": False, "fixture_demo": True, "manual_import": True,
+                                  "uploads": True, "max_upload_bytes": MAX_UPLOAD,
+-                                 "prepare_run": True, "local_fixture_subprocess": True, "historical_import": True}
++                                 "prepare_run": True, "local_fixture_subprocess": True, "historical_import": True,
++                                 "unified_chat": True, "cross_review": True}
+         state["storage_writable"] = self.storage_error is None
+         if self.storage_error:
+             state["warnings"].append(self.storage_error)
+@@ -294,19 +316,29 @@
+         state["connections"] = copy.deepcopy(state["connectors"])
+         state["projects"] = [state["project"]]
+         state["tasks"] = copy.deepcopy(state["phases"])
+-        state["agents"] = [{"id": "codex", "name": "dot / Codex", "label": "Codex", "connector_id": "codex_dot", "role": "primary_author", "status": "manual_handoff"},
+-                           {"id": "claude", "name": "Claude", "label": "Claude", "connector_id": "claude", "role": "code_reviewer", "status": "unconnected"},
+-                           {"id": "antigravity", "name": "Gemini / Antigravity", "label": "Gemini", "connector_id": "antigravity", "role": "context_reviewer", "status": "pending_specific_approval"}]
++        state["agents"] = [{"id": "codex", "name": "dot / Codex", "label": "Codex", "display_name": "ChatGPT", "connector_id": "codex_dot", "role": "primary_author", "status": "manual_handoff"},
++                           {"id": "claude", "name": "Claude", "label": "Claude", "display_name": "Claude", "connector_id": "claude", "role": "code_reviewer", "status": "unconnected"},
++                           {"id": "antigravity", "name": "Gemini / Antigravity", "label": "Gemini", "display_name": "Gemini", "connector_id": "antigravity", "role": "context_reviewer", "status": "pending_specific_approval"}]
+         cards = {item["id"]: item for item in state["connectors"]}
+         for agent in state["agents"]:
+             observed = cards[agent["connector_id"]]
+             agent.update(status=observed["status"], detected=observed["detected"], authenticated=observed["authenticated"],
+                          connected=observed["connected"], authorized=observed["authorized"])
+-        state["messages"] = [{"id": e["id"], "task_id": e["phase_id"], "agent_id": e["payload"].get("agent_id", "codex"),
+-                              "role": e["payload"].get("role", e["actor"]["kind"]),
+-                              "text": e["payload"].get("message", e["type"]), "type": e["type"],
+-                              "created_at": e["created_at"], "provenance": e["provenance"],
+-                              "references": e["references"]} for e in state["events"]]
++        state["messages"] = []
++        for e in state["events"]:
++            p = e["payload"]
++            msg = {"id": e["id"], "task_id": e["phase_id"], "agent_id": p.get("agent_id", "codex"),
++                   "role": p.get("role", e["actor"]["kind"]),
++                   "text": p.get("message", e["type"]), "type": e["type"],
++                   "created_at": e["created_at"], "provenance": e["provenance"],
++                   "references": e["references"]}
++            for extra_key in ("client_request_id", "chat_batch_id", "selected_providers", "run_ids",
++                              "run_id", "provider", "display_name", "connector_id", "run_status",
++                              "review_of_run_id", "review_of_message_id", "source_question_message_id",
++                              "context_snapshot"):
++                if extra_key in p:
++                    msg[extra_key] = p[extra_key]
++            state["messages"].append(msg)
+         state["artifacts"] = [{**a, "kind": "contribution", "artifact_type": "contribution"} for a in state["contributions"]] + [
+             {**a, "artifact_type": "evidence"} for a in state["evidence"]]
+         state["verified_completions"] = []
+@@ -413,7 +445,7 @@
+             "add_instruction", "start_phase", "request_reviews", "import_review", "add_contribution", "integrate_contribution",
+             "add_evidence", "advance_phase", "complete_project", "load_demo", "scenario_start", "scenario_advance", "scenario_fail",
+             "scenario_cancel", "begin_upload", "send_upload", "complete_upload", "cancel_upload", "send_message",
+-            "prepare_run", "import_history", "start_fixture_run", "cancel_run")}
++            "send_chat_request", "request_cross_review", "prepare_run", "import_history", "start_fixture_run", "cancel_run")}
+         if command == "invoke_provider":
+             fail("EXTERNAL_EXECUTION_NOT_AUTHORIZED", "No provider was invoked. Live execution requires future specific approval and transport implementation.", 403)
+         if command not in methods:
+@@ -421,12 +453,13 @@
+         methods[command](p)
+ 
+     def _optional_phase(self, p):
+-        phase_id = p.get("phase_id")
++        phase_id = p.get("phase_id") if "phase_id" in p else p.get("task_id")
+         return self._get("phases", phase_id) if phase_id is not None else None
+ 
+-    def _transport_bundle(self, provider, run_id, prompt, phase, *, mode, scenario="success", model=None, effort=None, conversation_id=None):
++    def _transport_bundle(self, provider, run_id, prompt, phase, *, mode, scenario="success", model=None, effort=None, conversation_id=None, instruction_snapshot=None):
+         try:
+             from transport import prepare_transport_request
++            snapshot = copy.deepcopy(instruction_snapshot) if instruction_snapshot is not None else self._effective(self._working, phase["id"] if phase else None)
+             return prepare_transport_request(provider, run_id=run_id, prompt=prompt,
+                 workspace_root=self.data_dir, journal_root=self.data_dir / "transport-journal",
+                 scenario=scenario, model=model, effort=effort, conversation_id=conversation_id,
+@@ -434,30 +467,30 @@
+                 role="primary_author" if provider in ("codex", "codex_dot") else "reviewer",
+                 revision=phase["current_revision"] if phase else None,
+                 instruction_version=phase["instruction_version"] if phase else self._working["project"]["instruction_version"],
+-                instruction_snapshot=self._effective(self._working, phase["id"] if phase else None), mode=mode,
++                instruction_snapshot=snapshot, mode=mode,
+                 connections_path=self.connections_path)
+         except (ValueError, OSError, ImportError) as exc:
+             fail("TRANSPORT_PREPARATION_FAILED", str(exc), 400)
+ 
+     def _run(self, provider, phase, mode, status, **fields):
+-        return self._entity(phase_id=phase["id"] if phase else None, provider=provider,
+-            connector_id="codex_dot" if provider == "codex" else provider, role="primary_author" if provider == "codex" else "reviewer",
++        defaults = dict(phase_id=phase["id"] if phase else None, provider=provider,
++            display_name=PROVIDER_DISPLAY_NAMES.get(provider, provider),
++            connector_id=PROVIDER_CONNECTOR_IDS.get(provider, provider),
++            role="primary_author" if provider == "codex" else "reviewer",
+             mode=mode, status=status, provenance="synthetic_fixture" if mode == "synthetic" else "manual_import",
+             authorization={"state": "not_granted"}, request_id=None, plan_id=None, intent_id=None,
+             conversation_id=None, provider_run_id=None, requested_model=None, reported_model=None, model=None,
+             requested_effort=None, reported_effort=None, effort=None, started_at=None, finished_at=None,
+             dispatch_state="not_started", response=None, usage=None, failure=None, error=None,
+-            request_event_id=None, response_event_id=None, eligible_current_phase=False, **fields)
++            request_event_id=None, response_event_id=None, eligible_current_phase=False)
++        defaults.update(fields)
++        return self._entity(**defaults)
+ 
+     def _prepare_run(self, p):
+         if set(p) - {"provider", "phase_id", "prompt", "model", "effort", "conversation_id"}:
+             fail("INVALID_PAYLOAD", "Preparation accepts provider, phase_id, prompt, model, effort and conversation_id only")
+         phase = self._optional_phase(p)
+-        provider = p.get("provider")
+-        if provider == "codex_dot":
+-            provider = "codex"
+-        if provider not in ("codex", "claude", "antigravity"):
+-            fail("INVALID_PROVIDER", "Choose codex, claude or antigravity")
++        provider = normalize_provider(p.get("provider"))
+         prompt = text(p.get("prompt"), "prompt")
+         model = text(p.get("model"), "model", 200, True)
+         effort = text(p.get("effort"), "effort", 100, True)
+@@ -472,26 +505,21 @@
+         run.update(plan_id=plan["id"], request_id=request.get("id"), requested_model=model, requested_effort=effort,
+             expected_conversation_id=conversation, plan=snapshot, plan_sha256=plan["sha256"],
+             preparation_notice="Prepared, awaiting explicit approval; no provider launched")
+-        e = self._emit("run_prepared", run["phase_id"], message=run["preparation_notice"], entities={"runs": [run], "execution_plans": [plan]})
++        self._emit("run_prepared", run["phase_id"], message=run["preparation_notice"], entities={"runs": [run], "execution_plans": [plan]})
+         self._command_result = {"run_id": run["id"], "plan_id": plan["id"], "request_id": request.get("id")}
+ 
+     def _start_fixture_run(self, p):
+-        if set(p) - {"scenario", "phase_id"}:
+-            fail("INVALID_PAYLOAD", "Fixtures accept a fixed scenario and optional phase_id only")
++        if set(p) - {"scenario", "phase_id", "provider", "prompt"}:
++            fail("INVALID_PAYLOAD", "Fixtures accept a fixed scenario, optional phase_id, optional provider, and optional prompt only")
+         phase = self._optional_phase(p)
+-        aliases = {"error": "nonzero_exit", "malformed": "malformed_output", "mismatch": "conversation_mismatch", "cancel": "wait_for_cancel"}
+-        scenario = p.get("scenario")
+-        if not isinstance(scenario, str):
+-            fail("INVALID_SCENARIO", "Choose a fixed local fixture scenario")
+-        scenario = aliases.get(scenario, scenario)
+-        if scenario not in ("success", "nonzero_exit", "malformed_output", "conversation_mismatch", "timeout", "output_overflow", "wait_for_cancel"):
+-            fail("INVALID_SCENARIO", "Choose a fixed local fixture scenario")
++        provider = normalize_provider(p.get("provider", "antigravity"))
++        scenario = normalize_scenario(p.get("scenario"))
++        prompt = text(p.get("prompt"), "prompt", 65536, True) or "[SYNTHETIC] Fixed local subprocess fixture; no provider invocation."
+         if sum(x.is_alive() for x in self._workers.values()) >= 4:
+             fail("RUN_LIMIT", "At most four local fixture workers may run concurrently", 409)
+-        run = self._run("antigravity", phase, "synthetic", "queued", run_kind="local_fixture", scenario=scenario)
+-        bundle = self._transport_bundle("antigravity", run["id"], "[SYNTHETIC] Fixed local subprocess fixture; no provider invocation.",
+-                                        phase, mode="synthetic", scenario=scenario)
+-        plan = self._entity(id=bundle["plan"]["id"], run_id=run["id"], provider="antigravity", mode="synthetic", snapshot=bundle["plan"], request=bundle["request"],
++        run = self._run(provider, phase, "synthetic", "queued", run_kind="local_fixture", scenario=scenario)
++        bundle = self._transport_bundle(provider, run["id"], prompt, phase, mode="synthetic", scenario=scenario)
++        plan = self._entity(id=bundle["plan"]["id"], run_id=run["id"], provider=provider, mode="synthetic", snapshot=bundle["plan"], request=bundle["request"],
+             sha256=bundle["plan"]["plan_sha256"], binding_sha256=hashlib.sha256(json.dumps(bundle, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
+             provenance="synthetic_fixture", immutable=True, authorization={"state": "fixture_only"})
+         run.update(plan_id=plan["id"], request_id=bundle["request"].get("id"), plan=bundle["plan"], plan_sha256=plan["sha256"])
+@@ -499,6 +527,414 @@
+                    entities={"runs": [run], "execution_plans": [plan]})
+         self._command_result = {"run_id": run["id"], "plan_id": plan["id"]}
+         self._after_commit.append(lambda: self._launch_fixture(run["id"], copy.deepcopy(bundle)))
++
++    def _normalize_provider_list(self, raw_providers):
++        if not isinstance(raw_providers, list) or not 1 <= len(raw_providers) <= 3:
++            fail("INVALID_PROVIDERS", "Select 1 to 3 providers from codex, claude, antigravity")
++        providers = []
++        for item in raw_providers:
++            norm = normalize_provider(item)
++            if norm in providers:
++                fail("DUPLICATE_PROVIDER", "Each selected provider in a single request must be distinct")
++            providers.append(norm)
++        return providers
++
++    def _check_client_request_id(self, client_request_id):
++        if client_request_id is None:
++            return None
++        req_id = text(client_request_id, "client_request_id", 200)
++        existing = next((e for e in self._working["events"] if e["payload"].get("client_request_id") == req_id), None)
++        return req_id, existing
++
++    def _build_context_snapshot(self, phase):
++        phase_id = phase["id"] if phase else self._working["project"]["active_phase_id"]
++        effective = self._effective(self._working, phase_id)
++        return {
++            "snapshot_id": uid(),
++            "captured_at": now(),
++            "project_id": PROJECT_ID,
++            "phase_id": phase_id,
++            "revision": phase["current_revision"] if phase else None,
++            "instruction_version": phase["instruction_version"] if phase else self._working["project"]["instruction_version"],
++            "effective_instructions": [{"id": i["id"], "kind": i["kind"], "scope": i["scope"], "text": i["text"]} for i in effective],
++            "raw_effective": effective,
++        }
++
++    def _format_chat_prompt(self, question_text, context_snapshot):
++        lines = [f"[공통 맥락 스냅샷 v{context_snapshot['instruction_version']}]"]
++        if context_snapshot["effective_instructions"]:
++            for item in context_snapshot["effective_instructions"]:
++                lines.append(f"- ({item['kind']}) {item['text']}")
++        else:
++            lines.append("- 등록된 추가 지시 없음")
++        lines.append("")
++        lines.append("[사용자 질문]")
++        lines.append(question_text)
++        return "\n".join(lines)
++
++    def _format_cross_review_prompt(self, question_text, source_provider, source_run_id, source_response_text, review_note, context_snapshot):
++        source_display = PROVIDER_DISPLAY_NAMES.get(source_provider, source_provider)
++        lines = [
++            f"[교차 검토 요청 · 대상 응답: {source_display} ({source_provider}) / run_id={source_run_id}]",
++            f"[공통 맥락 스냅샷 v{context_snapshot['instruction_version']}]",
++        ]
++        if context_snapshot["effective_instructions"]:
++            for item in context_snapshot["effective_instructions"]:
++                lines.append(f"- ({item['kind']}) {item['text']}")
++        else:
++            lines.append("- 등록된 추가 지시 없음")
++        lines.append("")
++        lines.append("[원질문]")
++        lines.append(question_text)
++        lines.append("")
++        lines.append(f"[선택한 응답 ({source_display} · {source_provider})]")
++        lines.append(source_response_text)
++        if review_note:
++            lines.append("")
++            lines.append("[검토 요청 메모]")
++            lines.append(review_note)
++        return "\n".join(lines)
++
++    def _send_chat_request(self, p):
++        allowed_keys = {"text", "providers", "task_id", "phase_id", "references", "client_request_id", "scenarios", "mode", "models"}
++        if set(p) - allowed_keys:
++            fail("INVALID_PAYLOAD", "send_chat_request received unsupported fields")
++        phase = self._optional_phase(p)
++        prompt_text = text(p.get("text"), "text", 32000)
++        providers = self._normalize_provider_list(p.get("providers", ["codex", "claude", "antigravity"]))
++        refs = p.get("references", [])
++        if not isinstance(refs, list) or not all(isinstance(x, str) for x in refs) or len(refs) > 100:
++            fail("INVALID_REFERENCE", "references must be a bounded array of existing IDs")
++        req_check = self._check_client_request_id(p.get("client_request_id"))
++        client_request_id = None
++        if req_check is not None:
++            client_request_id, existing = req_check
++            if existing is not None:
++                self._command_result = {
++                    "unchanged": True,
++                    "duplicate_request_id": client_request_id,
++                    "message_id": existing["id"],
++                    "chat_batch_id": existing["payload"].get("chat_batch_id"),
++                    "run_ids": existing["payload"].get("run_ids", []),
++                }
++                return
++        mode = p.get("mode", "synthetic")
++        if mode not in ("synthetic", "live_pending"):
++            fail("INVALID_MODE", "Choose synthetic or live_pending")
++        scenarios = p.get("scenarios") or {}
++        if not isinstance(scenarios, dict):
++            fail("INVALID_SCENARIO", "scenarios must be a provider-keyed object")
++        models = p.get("models") or {}
++        if not isinstance(models, dict):
++            fail("INVALID_FIELD", "models must be a provider-keyed object")
++        if mode == "synthetic" and sum(x.is_alive() for x in self._workers.values()) + len(providers) > 6:
++            fail("RUN_LIMIT", "Too many concurrent local fixture workers", 409)
++
++        context_snapshot = self._build_context_snapshot(phase)
++        raw_effective = context_snapshot.pop("raw_effective")
++        formatted_prompt = self._format_chat_prompt(prompt_text, context_snapshot)
++        chat_batch_id = uid()
++
++        user_event = self._emit(
++            "user_message",
++            phase["id"] if phase else None,
++            "manual_import",
++            references=refs,
++            message=prompt_text,
++            agent_id=providers[0],
++            role="user",
++            client_request_id=client_request_id,
++            chat_batch_id=chat_batch_id,
++            selected_providers=providers,
++            context_snapshot=context_snapshot,
++        )
++
++        runs, plans, bundles = [], [], []
++        for provider in providers:
++            scenario = normalize_scenario(scenarios.get(provider, "success")) if mode == "synthetic" else "success"
++            requested_model = text(models.get(provider), "model", 200, True) if provider in models else None
++            status = "queued" if mode == "synthetic" else "awaiting_approval"
++            run_kind = "local_fixture" if mode == "synthetic" else "prepared_live"
++            run = self._run(
++                provider,
++                phase,
++                mode,
++                status,
++                run_kind=run_kind,
++                scenario=scenario if mode == "synthetic" else None,
++                chat_batch_id=chat_batch_id,
++                client_request_id=client_request_id,
++                source_question_message_id=user_event["id"],
++                question_text=prompt_text,
++                context_snapshot=copy.deepcopy(context_snapshot),
++                request_event_id=user_event["id"],
++            )
++            bundle = self._transport_bundle(
++                provider,
++                run["id"],
++                formatted_prompt,
++                phase,
++                mode=mode,
++                scenario=scenario,
++                model=requested_model,
++                instruction_snapshot=raw_effective,
++            )
++            plan = self._entity(
++                id=bundle["plan"]["id"],
++                run_id=run["id"],
++                provider=provider,
++                mode=mode,
++                snapshot=bundle["plan"],
++                request=bundle["request"],
++                sha256=bundle["plan"]["plan_sha256"],
++                binding_sha256=hashlib.sha256(json.dumps(bundle, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
++                provenance="synthetic_fixture" if mode == "synthetic" else "manual_import",
++                immutable=True,
++                authorization={"state": "fixture_only" if mode == "synthetic" else "not_granted"},
++            )
++            run.update(
++                plan_id=plan["id"],
++                request_id=bundle["request"].get("id"),
++                requested_model=requested_model,
++                plan=bundle["plan"],
++                plan_sha256=plan["sha256"],
++            )
++            runs.append(run)
++            plans.append(plan)
++            if mode == "synthetic":
++                bundles.append((run["id"], copy.deepcopy(bundle)))
++
++        run_ids = [r["id"] for r in runs]
++        user_event["payload"]["run_ids"] = run_ids
++        self._working["events"][-1]["payload"]["run_ids"] = run_ids
++
++        self._emit(
++            "fixture_run_queued" if mode == "synthetic" else "run_prepared",
++            phase["id"] if phase else None,
++            "synthetic_fixture" if mode == "synthetic" else "manual_import",
++            references=[user_event["id"]],
++            message=("[SYNTHETIC] 3개 제공자 통합 채팅 요청 접수: " if mode == "synthetic" else "실행 계획 저장: ")
++                    + ", ".join(f"{PROVIDER_DISPLAY_NAMES[p]}({p})" for p in providers),
++            entities={"runs": runs, "execution_plans": plans},
++            chat_batch_id=chat_batch_id,
++            source_question_message_id=user_event["id"],
++            selected_providers=providers,
++            run_ids=run_ids,
++        )
++        self._command_result = {
++            "message_id": user_event["id"],
++            "chat_batch_id": chat_batch_id,
++            "run_ids": run_ids,
++            "selected_providers": providers,
++            "client_request_id": client_request_id,
++        }
++        for run_id, bundle in bundles:
++            self._after_commit.append(lambda rid=run_id, b=bundle: self._launch_fixture(rid, b))
++
++    def _request_cross_review(self, p):
++        allowed_keys = {"source_run_id", "source_message_id", "target_providers", "review_note", "task_id", "phase_id", "client_request_id", "scenarios", "mode", "models"}
++        if set(p) - allowed_keys:
++            fail("INVALID_PAYLOAD", "request_cross_review received unsupported fields")
++        phase = self._optional_phase(p)
++        target_providers = self._normalize_provider_list(p.get("target_providers"))
++        review_note = text(p.get("review_note"), "review_note", 8000, True)
++
++        req_check = self._check_client_request_id(p.get("client_request_id"))
++        client_request_id = None
++        if req_check is not None:
++            client_request_id, existing = req_check
++            if existing is not None:
++                self._command_result = {
++                    "unchanged": True,
++                    "duplicate_request_id": client_request_id,
++                    "message_id": existing["id"],
++                    "chat_batch_id": existing["payload"].get("chat_batch_id"),
++                    "run_ids": existing["payload"].get("run_ids", []),
++                }
++                return
++
++        source_run = None
++        source_message = None
++        if p.get("source_run_id") is not None:
++            source_run = self._get("runs", p.get("source_run_id"))
++        if p.get("source_message_id") is not None:
++            msg_id = p.get("source_message_id")
++            source_event = next((e for e in self._working["events"] if e["id"] == msg_id), None)
++            if source_event is None:
++                fail("NOT_FOUND", "Source message not found", 404, id=msg_id)
++            source_message = source_event
++            if source_run is None and source_event["payload"].get("run_id"):
++                source_run = self._get("runs", source_event["payload"]["run_id"])
++
++        if source_run is None and source_message is None:
++            fail("INVALID_FIELD", "Provide source_run_id or source_message_id to review")
++
++        if source_run is not None:
++            if source_run["status"] != "succeeded" or not (source_run.get("response") or "").strip():
++                fail("INVALID_REVIEW_SOURCE", "Only a succeeded provider response with nonempty text can be cross-reviewed", 409)
++            source_provider = source_run["provider"]
++            source_run_id = source_run["id"]
++            source_response_text = source_run["response"]
++            source_message_id = source_message["id"] if source_message else (source_run.get("response_event_id") or source_run.get("request_event_id"))
++            question_msg_id = source_run.get("source_question_message_id") or source_run.get("request_event_id")
++            question_text = source_run.get("question_text")
++            if not question_text and question_msg_id:
++                q_event = next((e for e in self._working["events"] if e["id"] == question_msg_id), None)
++                if q_event:
++                    question_text = q_event["payload"].get("message", "")
++            if not question_text:
++                question_text = "(원질문 기록 없음)"
++        else:
++            source_provider = source_message["payload"].get("provider") or source_message["payload"].get("agent_id") or "codex"
++            source_run_id = source_message["payload"].get("run_id") or source_message["id"]
++            source_response_text = source_message["payload"].get("message", "")
++            if not source_response_text.strip():
++                fail("INVALID_REVIEW_SOURCE", "Selected message has no response text to review", 409)
++            source_message_id = source_message["id"]
++            question_msg_id = source_message["payload"].get("source_question_message_id") or (source_message["references"][0] if source_message["references"] else source_message["id"])
++            q_event = next((e for e in self._working["events"] if e["id"] == question_msg_id), None)
++            question_text = q_event["payload"].get("message", "(원질문 기록 없음)") if q_event else "(원질문 기록 없음)"
++
++        mode = p.get("mode", "synthetic")
++        if mode not in ("synthetic", "live_pending"):
++            fail("INVALID_MODE", "Choose synthetic or live_pending")
++        scenarios = p.get("scenarios") or {}
++        if not isinstance(scenarios, dict):
++            fail("INVALID_SCENARIO", "scenarios must be a provider-keyed object")
++        models = p.get("models") or {}
++        if not isinstance(models, dict):
++            fail("INVALID_FIELD", "models must be a provider-keyed object")
++        if mode == "synthetic" and sum(x.is_alive() for x in self._workers.values()) + len(target_providers) > 6:
++            fail("RUN_LIMIT", "Too many concurrent local fixture workers", 409)
++
++        context_snapshot = self._build_context_snapshot(phase)
++        raw_effective = context_snapshot.pop("raw_effective")
++        review_prompt = self._format_cross_review_prompt(
++            question_text=question_text,
++            source_provider=source_provider,
++            source_run_id=source_run_id,
++            source_response_text=source_response_text,
++            review_note=review_note,
++            context_snapshot=context_snapshot,
++        )
++        chat_batch_id = uid()
++        refs = []
++        for candidate in (question_msg_id, source_message_id, source_run["id"] if source_run else None):
++            if isinstance(candidate, str) and candidate and candidate not in refs:
++                refs.append(candidate)
++
++        source_display = PROVIDER_DISPLAY_NAMES.get(source_provider, source_provider)
++        target_display = ", ".join(f"{PROVIDER_DISPLAY_NAMES[tp]}({tp})" for tp in target_providers)
++        summary_msg = f"[교차 검토 요청] {source_display}({source_provider})의 응답({source_run_id[:8]})을 {target_display}에게 검토 전달"
++        if review_note:
++            summary_msg += f" · 메모: {review_note}"
++
++        review_req_event = self._emit(
++            "cross_review_requested",
++            phase["id"] if phase else None,
++            "manual_import",
++            references=refs,
++            message=summary_msg,
++            agent_id=target_providers[0],
++            role="user",
++            client_request_id=client_request_id,
++            chat_batch_id=chat_batch_id,
++            selected_providers=target_providers,
++            review_of_run_id=source_run["id"] if source_run else None,
++            review_of_message_id=source_message_id,
++            source_question_message_id=question_msg_id,
++            context_snapshot=context_snapshot,
++        )
++
++        runs, plans, bundles = [], [], []
++        for provider in target_providers:
++            scenario = normalize_scenario(scenarios.get(provider, "success")) if mode == "synthetic" else "success"
++            requested_model = text(models.get(provider), "model", 200, True) if provider in models else None
++            status = "queued" if mode == "synthetic" else "awaiting_approval"
++            run_kind = "local_fixture" if mode == "synthetic" else "prepared_live"
++            run = self._run(
++                provider,
++                phase,
++                mode,
++                status,
++                run_kind=run_kind,
++                scenario=scenario if mode == "synthetic" else None,
++                chat_batch_id=chat_batch_id,
++                client_request_id=client_request_id,
++                review_of_run_id=source_run["id"] if source_run else None,
++                review_of_message_id=source_message_id,
++                review_source_provider=source_provider,
++                source_question_message_id=question_msg_id,
++                question_text=question_text,
++                reviewed_response_text=source_response_text,
++                review_note=review_note,
++                context_snapshot=copy.deepcopy(context_snapshot),
++                request_event_id=review_req_event["id"],
++            )
++            bundle = self._transport_bundle(
++                provider,
++                run["id"],
++                review_prompt,
++                phase,
++                mode=mode,
++                scenario=scenario,
++                model=requested_model,
++                instruction_snapshot=raw_effective,
++            )
++            plan = self._entity(
++                id=bundle["plan"]["id"],
++                run_id=run["id"],
++                provider=provider,
++                mode=mode,
++                snapshot=bundle["plan"],
++                request=bundle["request"],
++                sha256=bundle["plan"]["plan_sha256"],
++                binding_sha256=hashlib.sha256(json.dumps(bundle, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
++                provenance="synthetic_fixture" if mode == "synthetic" else "manual_import",
++                immutable=True,
++                authorization={"state": "fixture_only" if mode == "synthetic" else "not_granted"},
++            )
++            run.update(
++                plan_id=plan["id"],
++                request_id=bundle["request"].get("id"),
++                requested_model=requested_model,
++                plan=bundle["plan"],
++                plan_sha256=plan["sha256"],
++            )
++            runs.append(run)
++            plans.append(plan)
++            if mode == "synthetic":
++                bundles.append((run["id"], copy.deepcopy(bundle)))
++
++        run_ids = [r["id"] for r in runs]
++        review_req_event["payload"]["run_ids"] = run_ids
++        self._working["events"][-1]["payload"]["run_ids"] = run_ids
++
++        self._emit(
++            "fixture_run_queued" if mode == "synthetic" else "run_prepared",
++            phase["id"] if phase else None,
++            "synthetic_fixture" if mode == "synthetic" else "manual_import",
++            references=refs + [review_req_event["id"]],
++            message=f"[SYNTHETIC] 교차 검토 실행 접수 ({target_display})",
++            entities={"runs": runs, "execution_plans": plans},
++            chat_batch_id=chat_batch_id,
++            review_of_run_id=source_run["id"] if source_run else None,
++            review_of_message_id=source_message_id,
++            source_question_message_id=question_msg_id,
++            selected_providers=target_providers,
++            run_ids=run_ids,
++        )
++        self._command_result = {
++            "message_id": review_req_event["id"],
++            "chat_batch_id": chat_batch_id,
++            "run_ids": run_ids,
++            "target_providers": target_providers,
++            "review_of_run_id": source_run["id"] if source_run else None,
++            "review_of_message_id": source_message_id,
++            "source_question_message_id": question_msg_id,
++        }
++        for run_id, bundle in bundles:
++            self._after_commit.append(lambda rid=run_id, b=bundle: self._launch_fixture(rid, b))
+ 
+     def _launch_fixture(self, run_id, bundle):
+         if self._closed:
+@@ -535,6 +971,8 @@
+             if run.get("run_kind") != "local_fixture" or run["status"] not in ("queued", "running", "cancel_requested"):
+                 return False
+             if receipt is None:
++                if run["status"] == "cancel_requested":
++                    return False
+                 if run["status"] == "queued":
+                     run["status"] = "running"
+                 self._emit("fixture_worker_started", run["phase_id"], "synthetic_fixture", message="[SYNTHETIC] Bounded local fixture worker started; launch evidence follows in its receipt.", entities={"runs": [run]})
+@@ -543,16 +981,66 @@
+                 status = receipt.get("status")
+                 if status not in ("succeeded", "failed", "cancelled", "disconnected", "timed_out", "interrupted", "uncertain"):
+                     status = "disconnected"
++                late_response_ignored = False
++                if run["status"] == "cancel_requested" and status == "succeeded":
++                    # A late response arriving after cancellation must never revive a cancelled run into succeeded.
++                    late_response_ignored = True
++                    status = "cancelled"
++                    receipt["late_response_ignored"] = True
++                    receipt["status"] = "cancelled"
++                    receipt["outcome"] = "cancelled"
++                    receipt["failure"] = receipt.get("failure") or {
++                        "code": "CANCELLED",
++                        "message": "Run was cancelled before late response; late response ignored.",
++                        "stage": "cancelled",
++                        "retryable": False,
++                        "dispatch_uncertain": True,
++                    }
++                    receipt["error"] = "Cancelled by user; late response ignored"
++                response_text = None if late_response_ignored else receipt.get("response", receipt.get("report"))
+                 run.update(status=status, receipt=receipt, outcome=receipt.get("outcome", "uncertain"),
+                     provenance="synthetic_fixture", eligible_current_phase=False, attested=False,
++                    late_response_ignored=late_response_ignored,
+                     conversation_id=receipt.get("conversation_id"), provider_run_id=receipt.get("provider_run_id"),
+                     reported_model=receipt.get("model"), model=receipt.get("model"), reported_effort=receipt.get("effort"), effort=receipt.get("effort"),
+-                    response=receipt.get("response", receipt.get("report")), usage=receipt.get("usage"),
++                    response=response_text, usage=receipt.get("usage"),
+                     failure=receipt.get("failure"), error=receipt.get("error"), intent_id=receipt.get("intent_id"),
+                     started_at=receipt.get("started_at"), finished_at=receipt.get("finished_at", now()),
+                     dispatch_state=receipt.get("dispatch_state", "terminal_response" if status == "succeeded" else "uncertain"))
+-                self._emit("fixture_run_finished", run["phase_id"], "synthetic_fixture", references=[run_id],
+-                    message="[SYNTHETIC] Actual local fixture process outcome: " + status + ". No provider inference or phase verification.", entities={"runs": [run]})
++                provider = run["provider"]
++                display_name = PROVIDER_DISPLAY_NAMES.get(provider, provider)
++                is_chat_run = bool(run.get("chat_batch_id"))
++                if is_chat_run and status == "succeeded" and response_text:
++                    msg_text = response_text
++                elif is_chat_run:
++                    err_detail = run.get("error") or (run.get("failure") or {}).get("message") or status
++                    msg_text = f"[SYNTHETIC · {display_name}({provider}) 실행 {status}] {err_detail}"
++                else:
++                    msg_text = "[SYNTHETIC] Actual local fixture process outcome: " + status + ". No provider inference or phase verification."
++                refs = [run_id]
++                for ref_key in ("source_question_message_id", "review_of_run_id", "review_of_message_id"):
++                    val = run.get(ref_key)
++                    if isinstance(val, str) and val and val not in refs:
++                        refs.append(val)
++                self._emit(
++                    "fixture_run_finished",
++                    run["phase_id"],
++                    "synthetic_fixture",
++                    references=refs,
++                    message=msg_text,
++                    entities={"runs": [run]},
++                    agent_id=provider,
++                    role="primary_author" if provider == "codex" else "reviewer",
++                    run_id=run["id"],
++                    provider=provider,
++                    display_name=display_name,
++                    connector_id=run.get("connector_id"),
++                    run_status=status,
++                    chat_batch_id=run.get("chat_batch_id"),
++                    review_of_run_id=run.get("review_of_run_id"),
++                    review_of_message_id=run.get("review_of_message_id"),
++                    source_question_message_id=run.get("source_question_message_id"),
++                )
+             try:
+                 self._persist_pending()
+             except DomainError:
+@@ -634,7 +1122,16 @@
+         refs = p.get("references", [])
+         if not isinstance(refs, list) or not all(isinstance(x, str) for x in refs) or len(refs) > 100:
+             fail("INVALID_REFERENCE", "references must be a bounded array of existing IDs")
+-        self._emit("user_message", phase, references=refs, message=text(p.get("text")), agent_id=agent or "codex", role="user")
++        req_check = self._check_client_request_id(p.get("client_request_id"))
++        client_request_id = None
++        if req_check is not None:
++            client_request_id, existing = req_check
++            if existing is not None:
++                self._command_result = {"unchanged": True, "duplicate_request_id": client_request_id, "message_id": existing["id"]}
++                return
++        extra = {"client_request_id": client_request_id} if client_request_id else {}
++        e = self._emit("user_message", phase, references=refs, message=text(p.get("text")), agent_id=agent or "codex", role="user", **extra)
++        self._command_result = {"message_id": e["id"]}
+ 
+     def _add_instruction(self, p):
+         kind, scope = p.get("kind", "instruction"), p.get("scope", "project")
+--- a/fixtures/transport_child.py
++++ b/fixtures/transport_child.py
+@@ -21,12 +21,16 @@
+     else:
+         emit({"type": "thread.started", "thread_id": conversation, **common})
+     raw = sys.stdin.buffer.read()
++    prompt_text = ""
+     if provider == "antigravity":
+         message = json.loads(raw)
+         if message.get("event") != "user" or not isinstance(message.get("message", {}).get("content"), str):
+             raise ValueError("Invalid fixture Antigravity input")
++        prompt_text = message["message"]["content"].strip()
+     elif not raw.strip():
+         raise ValueError("Missing fixture prompt")
++    else:
++        prompt_text = raw.decode("utf-8", errors="replace").strip()
+     if scenario in ("timeout", "wait_for_cancel"):
+         time.sleep(60)
+     if scenario == "output_overflow":
+@@ -45,7 +49,16 @@
+     if scenario == "conversation_mismatch":
+         conversation += "-mismatch"
+     usage = {"input_tokens": 11, "output_tokens": 7, "total_tokens": 18}
+-    report = "Synthetic local fixture report; no external provider was called."
++    label = {"codex": "ChatGPT", "claude": "Claude", "antigravity": "Gemini"}.get(provider, provider)
++    base_report = "Synthetic local fixture report; no external provider was called."
++    if prompt_text and prompt_text not in (
++        "[SYNTHETIC] Fixed local subprocess fixture; no provider invocation.",
++        "Synthetic input; never send to a provider",
++        "Local fixture",
++    ):
++        report = f"{base_report} [{label}({provider})] 입력 확인:\n{prompt_text}"
++    else:
++        report = base_report
+     # Concurrent pipe activity exercises independent stdout/stderr drain.
+     print("Synthetic diagnostic; excluded from report.", file=sys.stderr, flush=True)
+     if provider == "antigravity":
+--- a/static/index.html
++++ b/static/index.html
+@@ -21,12 +21,27 @@
+         <div class="agent-strip" id="agent-strip"></div>
+         <div id="mode-notice" class="mode-notice"><span class="tiny-dot"></span><span>로컬</span></div>
+         <div id="storage-notice" class="storage-notice" role="alert" hidden></div>
+-        <section id="chat-view" class="chat-view" aria-label="프로젝트 대화"><div class="conversation-top"><span class="section-caption">프로젝트 대화</span><span id="message-count"></span></div><div id="messages" class="messages" aria-live="polite"></div></section>
++        <section id="chat-view" class="chat-view" aria-label="프로젝트 대화">
++          <div class="conversation-top"><span class="section-caption">3개 제공자 통합 대화 · 교차 검토</span><span id="message-count"></span></div>
++          <div id="provider-run-board" class="provider-run-board" aria-label="제공자별 독립 실행 상태"></div>
++          <div id="messages" class="messages" aria-live="polite"></div>
++        </section>
+         <section id="world-view" class="world-view" hidden aria-label="프로젝트 월드"><div class="world-heading"><div><h2>프로젝트 월드</h2></div><span class="world-live"><span class="tiny-dot"></span><span id="world-status">대기 중</span></span></div><div class="world-tools"><span id="world-renderer-mode" class="provenance">2D 대체 보기</span><div class="camera-controls" role="group" aria-label="3D 카메라"><button type="button" data-camera="left" aria-label="왼쪽 시점">↶</button><button type="button" data-camera="center">기본 시점</button><button type="button" data-camera="right" aria-label="오른쪽 시점">↷</button></div><details class="renderer-details"><summary>렌더링 정보</summary><button id="refresh-renderer-info" class="text-link" type="button">정보 갱신</button><pre id="world-renderer-diagnostics" class="detail-output">아직 3D를 시작하지 않았습니다.</pre></details></div><div class="world-stage" id="world-stage"><svg id="world" viewBox="0 0 1000 575" role="img" aria-label="검증된 작업 결과를 블록으로 보여 주는 프로젝트 월드"></svg><div class="world-hint">선택하여 기록 보기</div></div><div id="world-accessible-controls" class="world-accessible-controls" role="group" aria-label="월드 항목 선택"></div><div class="world-legend"><span><i class="legend-square verified"></i> 검증 결과 <strong id="verified-count">0</strong></span><span><i class="legend-square fixture"></i> 기본 시설</span><span><i class="legend-square ephemeral"></i> 활동</span></div></section>
++        <div id="cross-review-context" class="reply-context cross-review-banner" hidden></div>
+         <div id="reply-context" class="reply-context" hidden></div>
+         <div id="upload-status" class="upload-status" hidden></div>
+-        <form id="message-form" class="composer"><label for="message-input" class="sr-only">프로젝트에 메시지 보내기</label><textarea id="message-input" rows="2" placeholder="메시지 입력"></textarea><div class="composer-bottom"><div><button type="button" id="upload-button" class="attach-button" aria-label="작은 텍스트 파일 첨부">＋</button><span>텍스트 파일 첨부 <span class="keyboard-hint">· Enter 전송 / Shift + Enter 줄바꿈</span></span><input type="file" id="file-input" accept=".txt,.md,.json,.csv,.log,.py,.js,.html,.css" hidden></div><button type="submit" id="send-button" class="button send">보내기 <span>↑</span></button></div></form>
+-        
++        <form id="message-form" class="composer">
++          <div class="composer-providers" id="composer-providers" role="group" aria-label="전송 대상 제공자 선택">
++            <span class="composer-providers-label">대상 제공자 선택:</span>
++            <label class="provider-check"><input type="checkbox" value="codex" checked data-provider-select="codex"><span>ChatGPT <small>(codex_dot)</small></span></label>
++            <label class="provider-check"><input type="checkbox" value="claude" checked data-provider-select="claude"><span>Claude <small>(claude)</small></span></label>
++            <label class="provider-check"><input type="checkbox" value="antigravity" checked data-provider-select="antigravity"><span>Gemini <small>(antigravity)</small></span></label>
++            <span class="composer-mode-tag" title="외부 제공자 실호출은 승인 전까지 비활성이며 로컬 합성 어댑터로 동작합니다.">모의 실행 (외부 API 호출 0회)</span>
++          </div>
++          <label for="message-input" class="sr-only">프로젝트에 메시지 보내기</label>
++          <textarea id="message-input" rows="2" placeholder="선택한 제공자에게 동시에 보낼 질문이나 작업 요청을 입력하세요 (교차 검토 선택 시 추가 검토 메모 입력 가능)"></textarea>
++          <div class="composer-bottom"><div><button type="button" id="upload-button" class="attach-button" aria-label="작은 텍스트 파일 첨부">＋</button><span>텍스트 파일 첨부 <span class="keyboard-hint">· Enter 전송 / Shift + Enter 줄바꿈</span></span><input type="file" id="file-input" accept=".txt,.md,.json,.csv,.log,.py,.js,.html,.css" hidden></div><button type="submit" id="send-button" class="button send">선택 제공자에게 보내기 <span>↑</span></button></div>
++        </form>
+       </main>
+       <aside class="inspector" aria-label="작업 정보"><div class="inspector-header"><span id="inspector-heading">작업 브리핑</span><span class="small-cross">✦</span></div><div id="inspector-content" class="inspector-content"></div></aside>
+     </div>
+--- a/static/app.js
++++ b/static/app.js
+@@ -1,5 +1,10 @@
+ const WorkroomProjection = (() => {
+   const characters={codex:{name:'지피쨩',actor_name:'ChatGPT',provider:'Codex',asset:'/assets/codex-reference.png'},claude:{name:'클로쨩',actor_name:'Claude',provider:'Claude',asset:'/assets/claude-reference.png'},gemini:{name:'젬쨩',actor_name:'Gemini',provider:'Gemini',asset:'/assets/gemini-reference.jpg'}};
++  const providerCatalog={
++    codex:{provider:'codex',connector_id:'codex_dot',display_name:'ChatGPT',character_key:'codex'},
++    claude:{provider:'claude',connector_id:'claude',display_name:'Claude',character_key:'claude'},
++    antigravity:{provider:'antigravity',connector_id:'antigravity',display_name:'Gemini',character_key:'gemini'}
++  };
+   const modes = {connected:'연결됨',unconnected:'미연결',historical:'과거',synthetic:'모의',live_pending:'실행대기'};
+   function mode(record={}) {
+     if(record.mode==='historical'||record.run_kind==='historical_import'||record.provenance==='historical_external_execution')return 'historical';
+@@ -19,7 +24,31 @@
+     const ids=new Set(evidence.map(e=>e.id)),seen=new Set();
+     return events.filter(e=>{const p={...e,...e.payload};if(mode(e)==='historical'||e.run_kind==='local_fixture'||!p.completion_key||p.validation_status!=='confirmed'||!Array.isArray(p.evidence_refs)||!p.evidence_refs.length||!p.evidence_refs.every(id=>ids.has(id))||seen.has(p.completion_key))return false;seen.add(p.completion_key);return true;});
+   }
+-  return {mode,modes,reportedUsage,confirmedCompletions,characters,characterActive};
++  function providerBoardSummary(runs=[],taskId=null) {
++    const scoped=runs.filter(r=>!taskId||!r.phase_id||r.phase_id===taskId);
++    return ['codex','claude','antigravity'].map(key=>{
++      const meta=providerCatalog[key];
++      const matches=scoped.filter(r=>{
++        const p=String(r.provider||r.connector_id||'').toLowerCase();
++        return key==='codex'?['codex','codex_dot'].includes(p):key==='claude'?p==='claude':['antigravity','gemini'].includes(p);
++      });
++      const latest=matches.length?matches[matches.length-1]:null;
++      return {
++        provider:meta.provider,
++        connector_id:meta.connector_id,
++        display_name:meta.display_name,
++        run_id:latest?.id||null,
++        status:latest?.status||'idle',
++        mode:latest?mode(latest):'unconnected',
++        provenance:latest?.provenance||null,
++        requested_model:latest?.requested_model||null,
++        reported_model:latest?.reported_model||latest?.model||null,
++        review_of_run_id:latest?.review_of_run_id||null,
++        error:latest?.error||latest?.failure?.message||null
++      };
++    });
++  }
++  return {mode,modes,reportedUsage,confirmedCompletions,characters,characterActive,providerCatalog,providerBoardSummary};
+ })();
+ if(typeof module!=='undefined'&&module.exports)module.exports=WorkroomProjection;
+ if(typeof document!=='undefined') (() => {
+@@ -27,23 +56,29 @@
+   const $ = id => document.getElementById(id);
+   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+   const list = value => Array.isArray(value) ? value : [];
+-  const labels = {awaiting_approval:'실행 승인 대기',cancel_requested:'취소 처리 중',timed_out:'시간 초과',interrupted:'중단됨',uncertain:'결과 불확실',queued:'대기열',running:'전송 중',succeeded:'전송 성공',disconnected:'연결 종료',live_pending:'실행 대기',draft:'초안',reviewing:'검토 중',revising:'수정 중',revalidating:'재검증 중',done:'단계 완료',blocked:'보류',active:'진행 중',complete:'프로젝트 완료',passed:'통과',failed:'실패',pass:'통과',changes_requested:'수정 요청',pass_with_notes:'의견 있음',requested:'요청됨',received:'수신됨',stale:'이전 버전',pending:'준비 중',uploading:'전송 중',completed:'완료',cancelled:'취소됨',not_run:'미실행',unknown:'확인 안 됨'};
++  const labels = {idle:'대기',awaiting_approval:'실행 승인 대기',cancel_requested:'취소 처리 중',timed_out:'실패 (시간 초과)',interrupted:'중단됨',uncertain:'결과 불확실',queued:'접수 (대기열)',running:'응답 중',succeeded:'완료',disconnected:'중단됨 (연결 종료)',live_pending:'실행 대기',draft:'초안',reviewing:'검토 중',revising:'수정 중',revalidating:'재검증 중',done:'단계 완료',blocked:'보류',active:'진행 중',complete:'프로젝트 완료',passed:'통과',failed:'실패',pass:'통과',changes_requested:'수정 요청',pass_with_notes:'의견 있음',requested:'요청됨',received:'수신됨',stale:'이전 버전',pending:'준비 중',uploading:'전송 중',completed:'완료',cancelled:'취소됨',not_run:'미실행',unknown:'확인 안 됨'};
+   let state = {version:0,project:{id:'local-workroom',title:'Glance',status:'active'},projects:[],tasks:[],agents:[],messages:[],events:[],artifacts:[],connections:[],phases:[],reviews:[],runs:[],evidence:[],contributions:[],instructions:[],effective_instructions:[],uploads:[]};
+   let worldRenderer=null;
+   const reducedMotion=window.matchMedia?.('(prefers-reduced-motion: reduce)');
+   let connectionDraft={provider:'antigravity',phase_id:'',prompt:'',model:'',source_id:''};
+-  let view = 'chat', selectedProject = null, selectedTask = null, selectedAgent = null, inspector = 'brief', selectedArtifact = null, replyId = null, busy = false, connected = false, loaded = false, uploadJob = null, commandQueue = Promise.resolve(), toastTimer;
++  let view = 'chat', selectedProject = null, selectedTask = null, selectedAgent = null, inspector = 'brief', selectedArtifact = null, replyId = null, reviewTarget = null, busy = false, connected = false, loaded = false, uploadJob = null, commandQueue = Promise.resolve(), toastTimer, reqSeq = 0;
+   const fallbackAgents = [{id:'codex',role:'primary_author',label:'Codex'},{id:'claude',role:'reviewer',label:'Claude'},{id:'gemini',role:'reviewer',label:'Gemini'}];
+   const roleClass = a => /claude/i.test(a?.id+' '+a?.label+' '+a?.provider) ? 'claude' : /gemini|antigravity/i.test(a?.id+' '+a?.label+' '+a?.provider) ? 'gemini' : 'codex';
+   const roleName = a => ({codex:'메인 작성자',claude:'코드 리뷰어',gemini:'맥락 리뷰어'}[roleClass(a)]);
+   const characterFor = a => WorkroomProjection.characters[roleClass(a)];
+   function portrait(a) {const cls=roleClass(a),character=characterFor(a);return `<span class="agent-avatar portrait portrait-${cls}" role="img" aria-label="${character.actor_name} 원본 일러스트"><img src="${character.asset}" alt="" draggable="false"></span>`;}
++  function nextRequestId(prefix='chat') {reqSeq+=1;return `${prefix}-${Date.now()}-${reqSeq}`;}
++  function selectedProvidersFromForm() {
++    const boxes=[...document.querySelectorAll('[data-provider-select]')];
++    if(!boxes.length)return selectedAgent?[selectedAgent]:['codex','claude','antigravity'];
++    return boxes.filter(b=>b.checked).map(b=>b.value);
++  }
+ 
+   const agents = () => state.agents.length ? state.agents : fallbackAgents;
+   const task = () => state.tasks.find(t=>t.id===selectedTask) || null;
+   const displayProjectTitle = p => !p?.title||['Local AI Workroom','로컬 AI 작업실'].includes(p.title)?'Glance':p.title;
+   const project = () => state.projects.find(p=>p.id===selectedProject) || state.project;
+-  const badge = provenance => `<span class="provenance ${provenance==='external_execution'?'actual':provenance==='historical_external_execution'?'historical':''}">${esc(provenance==='synthetic_fixture'?'모의':provenance==='historical_external_execution'?'과거':provenance==='external_execution'?'실행':provenance==='manual_import'?'수동':'로컬')}</span>`;
++  const badge = provenance => `<span class="provenance ${provenance==='external_execution'?'actual':provenance==='historical_external_execution'?'historical':''}">${esc(provenance==='synthetic_fixture'?'이번 합성 응답':provenance==='historical_external_execution'?'저장된 과거 응답':provenance==='external_execution'?'실행':provenance==='manual_import'?'수동/사용자 입력':'로컬')}</span>`;
+   const time = value => {try{return new Date(value).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',hour12:false});}catch{return '';}};
+   function toast(text) {$('toast').textContent=text;$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,4200);}
+   function normalize(raw) {const next={...state,...raw};for(const k of ['agents','messages','events','reviews','runs','evidence','contributions','instructions','effective_instructions','uploads'])next[k]=list(raw[k]);next.agents=next.agents.map(a=>({...a,label:a.label||a.name||a.id,connector_id:a.connector_id||(a.id==='codex'?'codex_dot':a.id)}));next.projects=list(raw.projects).length?raw.projects:[raw.project||state.project];next.tasks=list(raw.tasks).length?raw.tasks:list(raw.phases);next.artifacts=(list(raw.artifacts).length?raw.artifacts:[...next.evidence,...next.contributions.map(x=>({...x,kind:'contribution'}))]).map(a=>({...a,kind:a.artifact_type==='contribution'?'contribution':a.kind||a.artifact_type}));next.connections=list(raw.connections).length?raw.connections:list(raw.connectors);next.history_sources=list(raw.history_sources);next.history_imports=list(raw.history_imports);return next;}
+@@ -51,17 +86,57 @@
+   async function refresh() {try{const r=await fetch('/api/state',{cache:'no-store'});if(!r.ok)throw Error('로컬 서버 응답 오류');const raw=await r.json();connected=true;adopt(raw);}catch(error){connected=false;renderConnection();}}
+   function command(name,payload={}) {const run=async()=>{if(!connected)throw Error('로컬 서버에 연결한 뒤 다시 시도하세요.');if(state.storage_writable===false)throw Error('저장 기록 오류로 쓰기가 잠겨 있습니다. 기록을 확인하세요.');busy=true;renderControls();try{const r=await fetch('/api/commands',{method:'POST',headers:{'Content-Type':'application/json','X-Workroom-Token':state.session_token||''},body:JSON.stringify({command:name,expected_version:state.version,payload})});let result;try{result=await r.json();}catch{throw Error('서버의 응답을 읽을 수 없습니다.');}if(!r.ok){if(r.status===409)await refresh();const error=new Error(result.error?.message||'요청을 처리하지 못했습니다.');error.code=result.error?.code;error.details=result.error?.details;throw error;}adopt(result.state);return result;}finally{busy=false;renderControls();}};const pending=commandQueue.then(run);commandQueue=pending.catch(()=>{});return pending;}
+   function renderConnection() {$('state-connection').textContent=connected?'로컬':'오프라인';$('state-connection').classList.toggle('offline',!connected);renderControls();}
+-  function render() {const p=project();$('project-title').textContent=displayProjectTitle(p);$('breadcrumb-project').textContent=displayProjectTitle(p);$('project-description').textContent='';$('project-status').textContent=labels[p.status]||p.status;$('project-count').textContent=String(state.projects.length||1).padStart(2,'0');$('task-count').textContent=String(state.tasks.length).padStart(2,'0');renderProjects();renderAgents();renderNotice();renderMessages();renderWorld();renderInspector();renderConnection();renderReply();renderStorage();if($('connections-dialog').open)renderConnections();}
++  function render() {const p=project();$('project-title').textContent=displayProjectTitle(p);$('breadcrumb-project').textContent=displayProjectTitle(p);$('project-description').textContent='';$('project-status').textContent=labels[p.status]||p.status;$('project-count').textContent=String(state.projects.length||1).padStart(2,'0');$('task-count').textContent=String(state.tasks.length).padStart(2,'0');renderProjects();renderAgents();renderNotice();renderProviderBoard();renderMessages();renderWorld();renderInspector();renderConnection();renderReply();renderCrossReviewBanner();renderStorage();if($('connections-dialog').open)renderConnections();}
+   function renderNotice() {const synthetic=(task()||scenarioTask())?.mode==='synthetic_fixture';$('mode-notice').classList.toggle('synthetic',synthetic);$('mode-notice').innerHTML=synthetic?'<span class="provenance">모의</span>':'<span class="tiny-dot"></span><span>로컬</span>'; }
+   function renderStorage() {const box=$('storage-notice');box.hidden=state.storage_writable!==false&&!list(state.warnings).length;box.textContent=(state.storage_writable===false?'저장 기록 오류 · 읽기 전용. ':'')+list(state.warnings).join(' · '); }
+   function effectiveForSelection() {const phase=selectedTask||state.project.active_phase_id;const rank={correction:0,instruction:1,summary:2};return state.instructions.filter(i=>i.effective&&(i.scope==='project'||i.phase_id===phase)).sort((a,b)=>(Number(a.provenance==='synthetic_fixture')-Number(b.provenance==='synthetic_fixture'))||(rank[a.kind]??3)-(rank[b.kind]??3)||(b.seq||0)-(a.seq||0));}
+   function renderProjects() {$('project-list').innerHTML=(state.projects.length?state.projects:[state.project]).map(p=>`<button class="project-card ${p.id===selectedProject?'active':''}" data-project="${esc(p.id)}"><span class="project-icon">◇</span><span><strong>${esc(displayProjectTitle(p))}</strong><small>${esc(labels[p.status]||p.status)} · 로컬 프로젝트</small></span><span class="tiny-dot green"></span></button>`).join('');$('task-list').innerHTML=`<button class="task-button ${selectedTask===null?'active':''}" data-task=""><span class="task-mark">◈</span>전체 대화<span class="task-step">ALL</span></button>`+state.tasks.map((t,i)=>`<button class="task-button ${selectedTask===t.id?'active':''}" data-task="${esc(t.id)}"><span class="task-mark">${t.status==='done'?'✓':t.status==='blocked'?'Ⅱ':'○'}</span><span>${esc(t.title||'작업 '+(i+1))}</span><span class="task-step">${t.mode==='synthetic_fixture'?'예시':String(i+1).padStart(2,'0')}</span></button>`).join('');}
+-  function renderAgents() {$('agent-strip').innerHTML=agents().map(a=>{const cls=roleClass(a), running=WorkroomProjection.characterActive(cls,state.runs), c=state.connections.find(c=>c.id===a.connector_id);return `<button class="agent-chip ${selectedAgent===a.id?'active':''} ${running?'busy':''}" data-agent="${esc(a.id)}">${portrait(a)}<span><span class="agent-name">${esc(characterFor(a).actor_name)} <span class="agent-connection">${c?.connected?'연결':'미연결'}</span></span><span class="agent-role">${roleName(a)}</span></span><span class="tiny-dot"></span></button>`;}).join('');}
++  function renderAgents() {$('agent-strip').innerHTML=agents().map(a=>{const cls=roleClass(a), running=WorkroomProjection.characterActive(cls,state.runs), c=state.connections.find(c=>c.id===a.connector_id);return `<button class="agent-chip ${selectedAgent===a.id?'active':''} ${running?'busy':''}" data-agent="${esc(a.id)}">${portrait(a)}<span><span class="agent-name">${esc(characterFor(a).actor_name)} <span class="agent-connection">${c?.connected?'연결':'미연결'}</span></span><span class="agent-role">${roleName(a)} · ID: ${esc(a.connector_id||a.id)}</span></span><span class="tiny-dot"></span></button>`;}).join('');}
++  function renderProviderBoard() {
++    const board=$('provider-run-board');
++    if(!board)return;
++    const summary=WorkroomProjection.providerBoardSummary(state.runs,selectedTask);
++    board.innerHTML=summary.map(item=>{
++      const active=['queued','running'].includes(item.status);
++      const runRecord=item.run_id?state.runs.find(r=>r.id===item.run_id):null;
++      const canReview=item.status==='succeeded'&&runRecord&&(runRecord.response||'').trim();
++      return `<div class="provider-run-card" data-provider-card="${esc(item.provider)}">
++        <div class="provider-run-head">
++          <strong>${esc(item.display_name)} <small>(${esc(item.connector_id)})</small></strong>
++          <span class="provider-run-status ${esc(item.status)}">${esc(labels[item.status]||item.status)}</span>
++        </div>
++        <div class="provider-run-meta">
++          <span>제공자 ID: ${esc(item.provider)}</span>
++          <span>모델: ${esc(item.reported_model||item.requested_model||'미지정')}</span>
++        </div>
++        ${item.provenance?`<div class="provider-run-meta">${badge(item.provenance)}${item.review_of_run_id?`<span>검토 대상: ${esc(item.review_of_run_id.slice(0,8))}</span>`:''}</div>`:''}
++        ${item.error?`<div class="provider-run-meta" style="color:#eabba4">오류: ${esc(String(item.error).slice(0,80))}</div>`:''}
++        <div class="message-actions">
++          ${active&&item.run_id?`<button type="button" data-cancel-run="${esc(item.run_id)}">✕ 이 제공자 실행 취소</button>`:''}
++          ${canReview?`<button type="button" data-prepare-cross-review="${esc(item.run_id)}">⇄ 다른 제공자에게 검토 전달</button>`:''}
++        </div>
++      </div>`;
++    }).join('');
++  }
+   function filteredMessages() {return state.messages.filter(m=>(!selectedTask||m.task_id===selectedTask||m.phase_id===selectedTask)&&(!selectedAgent||m.agent_id===selectedAgent||m.role==='user'));}
+-  function renderMessages() {const messages=filteredMessages();$('message-count').textContent=`${messages.length}개 메시지`;$('messages').innerHTML=messages.length?messages.map(m=>{const a=m.role==='user'?{id:'user',label:'나'}:agents().find(a=>a.id===m.agent_id)||{id:m.agent_id,label:m.agent_id||'워크룸'};const cls=m.role==='user'?'user':roleClass(a);return `<article class="message ${cls}" id="message-${esc(m.id)}">${m.role==='user'?'<span class="agent-avatar user">나</span>':portrait(a)}<div class="message-content"><div class="message-head"><strong>${esc(m.role==='user'?'나':characterFor(a).actor_name)}</strong><span class="message-role">${m.role==='user'?'프로젝트 오너':roleName(a)}</span>${badge(m.provenance)}<span class="message-time">${esc(time(m.created_at))}</span></div>${list(m.references).length?`<div class="message-ref">↳ 참조 ${esc(m.references.join(', '))}</div>`:''}<div class="message-body">${esc(m.text||m.content||'')}</div><div class="message-actions"><button data-reply="${esc(m.id)}">↩ 답글</button><button data-record="${esc(m.id)}">근거 및 참조</button></div></div></article>`;}).join(''):`<div class="empty-state"><span class="empty-cube">◇</span><h3>${selectedAgent?'이 에이전트의 메시지가 없습니다.':'아직 메시지가 없습니다.'}</h3></div>`;}
++  function renderMessages() {const messages=filteredMessages();$('message-count').textContent=`${messages.length}개 메시지`;$('messages').innerHTML=messages.length?messages.map(m=>{const a=m.role==='user'?{id:'user',label:'나'}:agents().find(a=>a.id===m.agent_id)||{id:m.agent_id,label:m.agent_id||'워크룸'};const cls=m.role==='user'?'user':roleClass(a);const runRecord=m.run_id?state.runs.find(r=>r.id===m.run_id):null;const canCrossReview=runRecord&&runRecord.status==='succeeded'&&(runRecord.response||'').trim();const otherProviders=['codex','claude','antigravity'].filter(p=>p!==(runRecord?.provider||m.agent_id));return `<article class="message ${cls}" id="message-${esc(m.id)}">${m.role==='user'?'<span class="agent-avatar user">나</span>':portrait(a)}<div class="message-content"><div class="message-head"><strong>${esc(m.role==='user'?'나':characterFor(a).actor_name)}</strong><span class="message-role">${m.role==='user'?'프로젝트 오너':`${roleName(a)} · ID:${esc(m.connector_id||a.connector_id||m.agent_id)}${runRecord?.model?' · 모델:'+esc(runRecord.model):''}`}</span>${badge(m.provenance)}${runRecord?`<span class="provider-run-status ${esc(runRecord.status)}">${esc(labels[runRecord.status]||runRecord.status)}</span>`:''}<span class="message-time">${esc(time(m.created_at))}</span></div>${m.selected_providers?`<div class="message-ref">→ 선택 제공자: ${esc(m.selected_providers.map(p=>WorkroomProjection.providerCatalog[p]?.display_name||p).join(', '))}</div>`:''}${m.review_of_run_id?`<div class="message-ref">⇄ 교차 검토 대상 실행 ID: ${esc(m.review_of_run_id)}${m.source_question_message_id?' · 원질문 ID: '+esc(m.source_question_message_id):''}</div>`:''}${list(m.references).length?`<div class="message-ref">↳ 참조 ${esc(m.references.join(', '))}</div>`:''}<div class="message-body">${esc(m.text||m.content||'')}</div><div class="message-actions"><button type="button" data-reply="${esc(m.id)}">↩ 답글</button><button type="button" data-record="${esc(m.id)}">근거 및 참조</button>${canCrossReview?`<button type="button" data-prepare-cross-review="${esc(runRecord.id)}" data-source-message="${esc(m.id)}">⇄ 다른 제공자에게 검토 전달 (${esc(otherProviders.map(p=>WorkroomProjection.providerCatalog[p]?.display_name||p).join('·'))})</button>`:''}</div></div></article>`;}).join(''):`<div class="empty-state"><span class="empty-cube">◇</span><h3>${selectedAgent?'이 에이전트의 메시지가 없습니다.':'아직 메시지가 없습니다.'}</h3></div>`;}
+   function renderReply() {const box=$('reply-context');box.hidden=!replyId;if(replyId){const m=state.messages.find(m=>m.id===replyId);box.innerHTML=`<span>↳ 답글 · ${esc((m?.text||replyId).slice(0,70))}</span><button id="clear-reply" aria-label="답글 취소">×</button>`;}}
++  function renderCrossReviewBanner() {
++    const box=$('cross-review-context');
++    if(!box)return;
++    box.hidden=!reviewTarget;
++    if(!reviewTarget){
++      if($('send-button'))$('send-button').innerHTML='선택 제공자에게 보내기 <span>↑</span>';
++      return;
++    }
++    const run=state.runs.find(r=>r.id===reviewTarget.run_id);
++    const sourceProvider=run?.provider||'codex';
++    const sourceLabel=WorkroomProjection.providerCatalog[sourceProvider]?.display_name||sourceProvider;
++    box.innerHTML=`<span>⇄ <strong>교차 검토 모드</strong> · 대상 응답: ${esc(sourceLabel)}(${esc(sourceProvider)}) [run: ${esc(reviewTarget.run_id.slice(0,8))}] · 원질문+선택 답변+공통 맥락만 아래 체크된 제공자에게 전달합니다.</span><button type="button" id="clear-cross-review" aria-label="교차 검토 취소">×</button>`;
++    if($('send-button'))$('send-button').innerHTML='선택 제공자에게 교차 검토 보내기 <span>⇄</span>';
++  }
+   const scoped = rows => rows.filter(r=>!selectedTask||r.phase_id===selectedTask||r.task_id===selectedTask);
+-  function renderInspector() {const draft=$('correction-input')?.value, focused=document.activeElement?.id==='correction-input';const content=$('inspector-content');$('inspector-heading').textContent={brief:'작업 브리핑',evidence:'프로젝트 기록',agent:'에이전트 작업실',artifact:'결과물 상세',record:'기록 및 참조',instructions:'프로젝트 지시'}[inspector]||'작업 브리핑';let html='';if(inspector==='agent'){const a=agents().find(a=>a.id===selectedAgent)||agents()[0];const c=state.connections.find(c=>c.id===a.connector_id);const reviews=scoped(state.reviews).filter(r=>String(r.reviewer).toLowerCase().includes(a.id)||String(r.reviewer).toLowerCase().includes(roleClass(a))||(r.connector_id&&r.connector_id===a.connector_id));html=`<button class="inspector-back" data-inspector="brief">← 작업 브리핑</button><div class="inspector-kicker">${esc(roleName(a))}</div><h2>${esc(characterFor(a).actor_name)}</h2><p class="inspector-description">${esc(c?.reason||'실제 제공자와 연결되지 않았습니다. 아래 기록은 출처 배지로 구분됩니다.')}</p><div class="metric-row"><span>연결 / 실행 승인</span><strong>${c?.connected?'연결됨':'미연결'} / ${c?.authorized?'승인됨':'미승인'}</strong></div><div class="metric-row"><span>실행 모델 · 노력 수준</span><strong>Unknown / not provided</strong></div><div class="inspector-section"><h3>리뷰 기록 <span>${reviews.length}</span></h3>${reviews.map(reviewCard).join('')||'<p class="zero-evidence">아직 리뷰 기록이 없습니다.</p>'}</div><div class="inspector-section"><h3>이 에이전트의 대화</h3><p class="zero-evidence">대화 보기를 선택하면 이 에이전트와 연결된 메시지가 표시됩니다.</p><button class="button secondary" data-show-chat="">대화로 이동 ↗</button></div>`;}else if(inspector==='evidence'){html=`<button class="inspector-back" data-inspector="brief">← 작업 브리핑</button><div class="inspector-kicker">APPEND-ONLY HISTORY</div><h2>프로젝트 기록</h2><button class="button secondary" data-inspector="instructions">프로젝트 지시와 수정 내역 ↗</button><div class="inspector-section"><h3>결과물 및 테스트 <span>${scoped(state.artifacts).length}</span></h3>${scoped(state.artifacts).map(artifactCard).join('')||'<p class="zero-evidence">검증 자료가 아직 없습니다.</p>'}</div><div class="inspector-section"><h3>리뷰</h3>${scoped(state.reviews).map(reviewCard).join('')||'<p class="zero-evidence">리뷰 기록이 아직 없습니다.</p>'}</div><div class="inspector-section"><h3>시간순 이벤트 <span>${state.events.length}</span></h3>${[...scoped(state.events)].reverse().slice(0,30).map(e=>`<div class="evidence-item"><strong>#${esc(e.seq)} · ${esc(e.type)}</strong>${badge(e.provenance)}<small>${esc(time(e.created_at))} · ${esc(e.id)}</small></div>`).join('')||'<p class="zero-evidence">첫 기록을 기다리고 있어요.</p>'}</div>`;}else if(inspector==='instructions'){html=`<button class="inspector-back" data-inspector="brief">← 작업 브리핑</button><div class="inspector-kicker">USER DIRECTION</div><h2>프로젝트의 방향</h2><p class="inspector-description">최신 수정 지시를 우선합니다. 이전 지시와 원문은 기록에 남습니다.</p><form id="correction-form"><label class="sr-only" for="correction-input">수정 지시</label><textarea id="correction-input" class="correction-input" placeholder="새 수정 지시를 입력하세요" required maxlength="64000"></textarea><button class="button secondary" type="submit">수정 지시 저장 ↑</button></form><div class="inspector-section"><h3>선택한 작업에 적용되는 지시</h3>${effectiveForSelection().map(instructionCard).join('')||'<p class="zero-evidence">등록된 프로젝트 지시가 없습니다.</p>'}</div><div class="inspector-section"><h3>전체 이력</h3>${[...state.instructions].reverse().map(instructionCard).join('')}</div>`;}else if(inspector==='artifact'){const a=state.artifacts.find(x=>x.id===selectedArtifact)||{};html=`<button class="inspector-back" data-inspector="evidence">← 프로젝트 기록</button><div class="inspector-kicker">${esc(a.kind||'ARTIFACT')}</div><h2>${esc(a.label||a.revision||a.id||'결과물')}</h2>${badge(a.provenance)}<div class="metric-row"><span>상태</span><strong>${esc(labels[a.status]||a.status||'수동')}</strong></div><div class="metric-row"><span>리비전</span><strong>${esc(a.revision||'Unknown / not provided')}</strong></div><div class="metric-row"><span>기준 리비전</span><strong>${esc(a.base_revision||'Unknown / not provided')}</strong></div>${a.workspace_path?`<p class="inspector-description">작업 공간: ${esc(a.workspace_path)}</p>`:''}${a.changed_files?`<div class="inspector-section"><h3>변경 파일</h3><p class="inspector-description">${esc(a.changed_files.join('\n'))}</p><div class="metric-row"><span>통합 기록</span><strong>${a.integrated?'명시적 통합 있음':'미통합'}</strong></div></div>`:''}<div class="inspector-section"><h3>테스트 명령 / 내용</h3><pre class="detail-output">${esc(a.command||'')}</pre><pre class="detail-output">${esc(a.output||a.diff_text||a.text||'내용이 제공되지 않았습니다.')}</pre></div><small class="zero-evidence">근거 ID: ${esc(a.source_event_id||a.id||'')}</small>`;}else if(inspector==='record'){const m=state.messages.find(m=>m.id===selectedArtifact),e=state.events.find(e=>e.id===selectedArtifact);html=`<button class="inspector-back" data-inspector="brief">← 작업 브리핑</button><h2>기록 및 참조</h2>${badge(m?.provenance||e?.provenance)}<pre class="detail-output">${esc(JSON.stringify(m||e||{},null,2))}</pre>`;}else html=briefHTML();content.innerHTML=html;if(draft!==undefined&&$('correction-input')){$('correction-input').value=draft;if(focused)$('correction-input').focus();}renderControls();}
++  function renderInspector() {const draft=$('correction-input')?.value, focused=document.activeElement?.id==='correction-input';const content=$('inspector-content');$('inspector-heading').textContent={brief:'작업 브리핑',evidence:'프로젝트 기록',agent:'에이전트 작업실',artifact:'결과물 상세',record:'기록 및 참조',instructions:'프로젝트 지시'}[inspector]||'작업 브리핑';let html='';if(inspector==='agent'){const a=agents().find(a=>a.id===selectedAgent)||agents()[0];const c=state.connections.find(c=>c.id===a.connector_id);const reviews=scoped(state.reviews).filter(r=>String(r.reviewer).toLowerCase().includes(a.id)||String(r.reviewer).toLowerCase().includes(roleClass(a))||(r.connector_id&&r.connector_id===a.connector_id));html=`<button class="inspector-back" data-inspector="brief">← 작업 브리핑</button><div class="inspector-kicker">${esc(roleName(a))}</div><h2>${esc(characterFor(a).actor_name)}</h2><p class="inspector-description">${esc(c?.reason||'실제 제공자와 연결되지 않았습니다. 아래 기록은 출처 배지로 구분됩니다.')}</p><div class="metric-row"><span>표시 이름 / 제공자 ID</span><strong>${esc(characterFor(a).actor_name)} / ${esc(a.connector_id||a.id)}</strong></div><div class="metric-row"><span>연결 / 실행 승인</span><strong>${c?.connected?'연결됨':'미연결'} / ${c?.authorized?'승인됨':'미승인'}</strong></div><div class="metric-row"><span>실행 모델 · 노력 수준</span><strong>Unknown / not provided</strong></div><div class="inspector-section"><h3>리뷰 기록 <span>${reviews.length}</span></h3>${reviews.map(reviewCard).join('')||'<p class="zero-evidence">아직 리뷰 기록이 없습니다.</p>'}</div><div class="inspector-section"><h3>이 에이전트의 대화</h3><p class="zero-evidence">대화 보기를 선택하면 이 에이전트와 연결된 메시지가 표시됩니다.</p><button class="button secondary" data-show-chat="">대화로 이동 ↗</button></div>`;}else if(inspector==='evidence'){html=`<button class="inspector-back" data-inspector="brief">← 작업 브리핑</button><div class="inspector-kicker">APPEND-ONLY HISTORY</div><h2>프로젝트 기록</h2><button class="button secondary" data-inspector="instructions">프로젝트 지시와 수정 내역 ↗</button><div class="inspector-section"><h3>결과물 및 테스트 <span>${scoped(state.artifacts).length}</span></h3>${scoped(state.artifacts).map(artifactCard).join('')||'<p class="zero-evidence">검증 자료가 아직 없습니다.</p>'}</div><div class="inspector-section"><h3>리뷰</h3>${scoped(state.reviews).map(reviewCard).join('')||'<p class="zero-evidence">리뷰 기록이 아직 없습니다.</p>'}</div><div class="inspector-section"><h3>시간순 이벤트 <span>${state.events.length}</span></h3>${[...scoped(state.events)].reverse().slice(0,30).map(e=>`<div class="evidence-item"><strong>#${esc(e.seq)} · ${esc(e.type)}</strong>${badge(e.provenance)}<small>${esc(time(e.created_at))} · ${esc(e.id)}</small></div>`).join('')||'<p class="zero-evidence">첫 기록을 기다리고 있어요.</p>'}</div>`;}else if(inspector==='instructions'){html=`<button class="inspector-back" data-inspector="brief">← 작업 브리핑</button><div class="inspector-kicker">USER DIRECTION</div><h2>프로젝트의 방향</h2><p class="inspector-description">최신 수정 지시를 우선합니다. 이전 지시와 원문은 기록에 남습니다.</p><form id="correction-form"><label class="sr-only" for="correction-input">수정 지시</label><textarea id="correction-input" class="correction-input" placeholder="새 수정 지시를 입력하세요" required maxlength="64000"></textarea><button class="button secondary" type="submit">수정 지시 저장 ↑</button></form><div class="inspector-section"><h3>선택한 작업에 적용되는 지시</h3>${effectiveForSelection().map(instructionCard).join('')||'<p class="zero-evidence">등록된 프로젝트 지시가 없습니다.</p>'}</div><div class="inspector-section"><h3>전체 이력</h3>${[...state.instructions].reverse().map(instructionCard).join('')}</div>`;}else if(inspector==='artifact'){const a=state.artifacts.find(x=>x.id===selectedArtifact)||{};html=`<button class="inspector-back" data-inspector="evidence">← 프로젝트 기록</button><div class="inspector-kicker">${esc(a.kind||'ARTIFACT')}</div><h2>${esc(a.label||a.revision||a.id||'결과물')}</h2>${badge(a.provenance)}<div class="metric-row"><span>상태</span><strong>${esc(labels[a.status]||a.status||'수동')}</strong></div><div class="metric-row"><span>리비전</span><strong>${esc(a.revision||'Unknown / not provided')}</strong></div><div class="metric-row"><span>기준 리비전</span><strong>${esc(a.base_revision||'Unknown / not provided')}</strong></div>${a.workspace_path?`<p class="inspector-description">작업 공간: ${esc(a.workspace_path)}</p>`:''}${a.changed_files?`<div class="inspector-section"><h3>변경 파일</h3><p class="inspector-description">${esc(a.changed_files.join('\n'))}</p><div class="metric-row"><span>통합 기록</span><strong>${a.integrated?'명시적 통합 있음':'미통합'}</strong></div></div>`:''}<div class="inspector-section"><h3>테스트 명령 / 내용</h3><pre class="detail-output">${esc(a.command||'')}</pre><pre class="detail-output">${esc(a.output||a.diff_text||a.text||'내용이 제공되지 않았습니다.')}</pre></div><small class="zero-evidence">근거 ID: ${esc(a.source_event_id||a.id||'')}</small>`;}else if(inspector==='record'){const m=state.messages.find(m=>m.id===selectedArtifact),e=state.events.find(e=>e.id===selectedArtifact);html=`<button class="inspector-back" data-inspector="brief">← 작업 브리핑</button><h2>기록 및 참조</h2>${badge(m?.provenance||e?.provenance)}<pre class="detail-output">${esc(JSON.stringify(m||e||{},null,2))}</pre>`;}else html=briefHTML();content.innerHTML=html;if(draft!==undefined&&$('correction-input')){$('correction-input').value=draft;if(focused)$('correction-input').focus();}renderControls();}
+   function instructionCard(i) {return `<div class="evidence-item ${i.effective===false?'superseded':''}"><strong>${i.kind==='correction'?'수정 지시':i.kind==='summary'?'요약':'지시'} ${i.effective===false?'· 대체됨':''}</strong><p>${esc(i.text)}</p><small>${esc(i.scope)} · ${esc(i.id)}${i.superseded_by?' · 대체 기록 '+esc(i.superseded_by):''}</small>${list(i.supersedes).length?`<small>이전 지시 참조: ${esc(i.supersedes.join(', '))}</small>`:''}</div>`;}
+   function reviewCard(r) {return `<div class="evidence-item"><strong>${esc(r.reviewer)} · ${r.stage==='revalidation'?'재검증':'초기 검토'}</strong>${badge(r.provenance)}<p>${esc(r.response_text||r.request_text||'응답 대기 중')}</p><small>판정: ${esc(labels[r.verdict]||r.verdict||'대기')} · ${esc(labels[r.status]||r.status)}<br>리비전 ${esc(r.revision)} · 지시 v${esc(r.instruction_version)}<br>모델 / 노력: ${esc(r.model||'Unknown')} / ${esc(r.effort||'not provided')}<br>대화 ID: ${esc(r.conversation_id||'Unknown / not provided')}</small>${list(r.findings).map(f=>`<p>${esc(f.category)} · ${esc(f.severity)}<br>${esc(f.text)}</p>`).join('')}</div>`;}
+   function artifactCard(a) {return `<button class="artifact-button" data-artifact="${esc(a.id)}"><strong>${a.kind==='test'?'✓':a.kind==='contribution'?'↳':'▤'} ${esc(a.label||a.revision||a.id)}</strong><small>${esc(labels[a.status]||a.status||a.kind||'결과물')} · ${esc(a.revision||'리비전 미제공')}</small>${badge(a.provenance)}</button>`;}
+@@ -100,20 +175,60 @@
+     const sign=P(8.4,6.7,.1);s+=`<g><path d="M${sign[0]} ${sign[1]}v-23" stroke="#84724e" stroke-width="4"/><rect x="${sign[0]-29}" y="${sign[1]-42}" width="58" height="23" rx="2" fill="#424b33" stroke="#79865c"/><text x="${sign[0]}" y="${sign[1]-27}" fill="#c4d2aa" font-size="8" text-anchor="middle">${t?.status==='blocked'?'Ⅱ 보류':t?.status==='cancelled'?'Ⅱ 취소됨':t?.mode==='synthetic_fixture'?'모의':'LOCAL PLOT'}</text></g>`;if(busyRun){const q=P(4.7,4.5,2.4);s+=`<g class="world-spark"><path d="M${q[0]} ${q[1]-8}v16m-8-8h16" stroke="#d0e6a7" stroke-width="2"/></g>`;}replaceWorldMarkup(svg,s);replaceWorldMarkup($('world-accessible-controls'),agents().map(a=>`<button type="button" class="button secondary" data-agent="${esc(a.id)}" aria-pressed="${selectedAgent===a.id}">${esc(characterFor(a).actor_name)}</button>`).join('')+`<button type="button" class="button secondary" data-inspector="evidence">근거 ${events.length}</button>${events.length>256?`<span class="provenance">+${events.length-256}</span>`:''}`);if(worldRenderer){worldRenderer.update(worldSnapshot());rendererInfo();}}
+   function setView(next) {view=next;$('chat-view').hidden=view!=='chat';$('world-view').hidden=view!=='world';for(const name of ['chat','world']){$(name+'-toggle').classList.toggle('active',view===name);$(name+'-toggle').setAttribute('aria-pressed',String(view===name));}if(view==='world')ensureWorldRenderer();worldRenderer?.setVisible(view==='world');rendererInfo();}
+   function pickAgent(id) {selectedAgent=selectedAgent===id?null:id;inspector=selectedAgent?'agent':'brief';renderAgents();renderMessages();renderWorld();renderInspector();}
+-  document.addEventListener('click',async event=>{const el=event.target.closest('[data-project],[data-task],[data-agent],[data-inspector],[data-artifact],[data-reply],[data-record],[data-command],[data-show-chat]');if(!el)return;if(el.hasAttribute('data-project')){selectedProject=el.dataset.project;selectedTask=null;selectedAgent=null;inspector='brief';render();}else if(el.hasAttribute('data-task')){selectedTask=el.dataset.task||null;selectedAgent=null;inspector='brief';render();}else if(el.hasAttribute('data-agent'))pickAgent(el.dataset.agent);else if(el.hasAttribute('data-inspector')){inspector=el.dataset.inspector;renderInspector();}else if(el.hasAttribute('data-artifact')){selectedArtifact=el.dataset.artifact;inspector='artifact';renderInspector();}else if(el.hasAttribute('data-reply')){replyId=el.dataset.reply;renderReply();$('message-input').focus();}else if(el.hasAttribute('data-record')){selectedArtifact=el.dataset.record;inspector='record';renderInspector();}else if(el.hasAttribute('data-show-chat'))setView('chat');else if(el.hasAttribute('data-command')){try{const name=el.dataset.command, t=scenarioTask();const result=await command(name,name==='scenario_start'?{}:{phase_id:t.id});if(name==='scenario_start'){const phase=[...state.tasks].reverse().find(t=>t.mode==='synthetic_fixture');selectedTask=phase?.id||null;render();}toast(name==='scenario_start'?'모의 작업를 시작했습니다.':name==='scenario_advance'?'다음 단계의 기록을 확인하세요.':name==='scenario_fail'?'실패를 기록하고 시나리오를 보류했습니다.':'시나리오를 취소했습니다.');}catch(e){toast(e.message);}}});
++  document.addEventListener('click',async event=>{const el=event.target.closest('[data-project],[data-task],[data-agent],[data-inspector],[data-artifact],[data-reply],[data-record],[data-command],[data-show-chat],[data-prepare-cross-review]');if(!el)return;if(el.hasAttribute('data-project')){selectedProject=el.dataset.project;selectedTask=null;selectedAgent=null;inspector='brief';render();}else if(el.hasAttribute('data-task')){selectedTask=el.dataset.task||null;selectedAgent=null;inspector='brief';render();}else if(el.hasAttribute('data-agent'))pickAgent(el.dataset.agent);else if(el.hasAttribute('data-inspector')){inspector=el.dataset.inspector;renderInspector();}else if(el.hasAttribute('data-artifact')){selectedArtifact=el.dataset.artifact;inspector='artifact';renderInspector();}else if(el.hasAttribute('data-reply')){replyId=el.dataset.reply;renderReply();$('message-input').focus();}else if(el.hasAttribute('data-prepare-cross-review')){const runId=el.dataset.prepareCrossReview,msgId=el.dataset.sourceMessage||null,run=state.runs.find(r=>r.id===runId);if(!run)return;reviewTarget={run_id:runId,message_id:msgId};document.querySelectorAll('[data-provider-select]').forEach(box=>{box.checked=box.value!==run.provider;});renderCrossReviewBanner();$('message-input').focus();toast('교차 검토 대상 응답을 선택했습니다. 전달할 제공자를 확인하고 전송하세요.');}else if(el.hasAttribute('data-record')){selectedArtifact=el.dataset.record;inspector='record';renderInspector();}else if(el.hasAttribute('data-show-chat'))setView('chat');else if(el.hasAttribute('data-command')){try{const name=el.dataset.command, t=scenarioTask();const result=await command(name,name==='scenario_start'?{}:{phase_id:t.id});if(name==='scenario_start'){const phase=[...state.tasks].reverse().find(t=>t.mode==='synthetic_fixture');selectedTask=phase?.id||null;render();}toast(name==='scenario_start'?'모의 작업를 시작했습니다.':name==='scenario_advance'?'다음 단계의 기록을 확인하세요.':name==='scenario_fail'?'실패를 기록하고 시나리오를 보류했습니다.':'시나리오를 취소했습니다.');}catch(e){toast(e.message);}}});
+   document.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.matches('g[role="button"]')){e.preventDefault();e.target.dispatchEvent(new MouseEvent('click',{bubbles:true}));}});
+   document.addEventListener('click',e=>{const button=e.target.closest('[data-camera]');if(button){worldRenderer?.setCameraPreset(button.dataset.camera);rendererInfo();}});
+   $('refresh-renderer-info').onclick=rendererInfo;
+   reducedMotion?.addEventListener?.('change',e=>worldRenderer?.setReducedMotion(e.matches));
+   window.addEventListener('pagehide',()=>worldRenderer?.dispose(),{once:true});
+-  $('chat-toggle').onclick=()=>setView('chat');$('world-toggle').onclick=()=>setView('world');$('refresh-button').onclick=refresh;$('evidence-button').onclick=()=>{inspector='evidence';renderInspector();};$('message-form').onsubmit=async e=>{e.preventDefault();const input=$('message-input'), text=input.value.trim();if(!text)return;try{await command('send_message',{text,task_id:selectedTask,agent_id:selectedAgent,references:replyId?[replyId]:[]});input.value='';replyId=null;renderReply();$('messages').scrollTop=$('messages').scrollHeight;}catch(err){toast(err.message);}};$('message-input').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();$('message-form').requestSubmit();}};
++  $('chat-toggle').onclick=()=>setView('chat');$('world-toggle').onclick=()=>setView('world');$('refresh-button').onclick=refresh;$('evidence-button').onclick=()=>{inspector='evidence';renderInspector();};
++  $('message-form').onsubmit=async e=>{
++    e.preventDefault();
++    const input=$('message-input'), text=input.value.trim();
++    const providers=selectedProvidersFromForm();
++    if(!providers.length){toast('요청을 보낼 제공자(ChatGPT, Claude, Gemini)를 1개 이상 선택하세요.');return;}
++    if(!reviewTarget&&!text)return;
++    try{
++      if(reviewTarget){
++        await command('request_cross_review',{
++          source_run_id:reviewTarget.run_id,
++          source_message_id:reviewTarget.message_id,
++          target_providers:providers,
++          review_note:text||null,
++          task_id:selectedTask,
++          client_request_id:nextRequestId('cross-review')
++        });
++        input.value='';
++        reviewTarget=null;
++        renderCrossReviewBanner();
++        toast('선택한 응답을 다른 제공자에게 교차 검토 대상으로 전달했습니다.');
++      }else{
++        await command('send_chat_request',{
++          text,
++          providers,
++          task_id:selectedTask,
++          references:replyId?[replyId]:[],
++          client_request_id:nextRequestId('chat')
++        });
++        input.value='';
++        replyId=null;
++        renderReply();
++        toast(`선택한 제공자(${providers.length}개)에게 통합 요청을 보냈습니다.`);
++      }
++      $('messages').scrollTop=$('messages').scrollHeight;
++      setTimeout(refresh,220);
++      setTimeout(refresh,650);
++    }catch(err){toast(err.message);}
++  };
++  $('message-input').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();$('message-form').requestSubmit();}};
+   document.addEventListener('submit',async e=>{if(e.target.id!=='correction-form')return;e.preventDefault();const input=$('correction-input'),text=input.value.trim();if(!text)return;try{await command('add_instruction',{text,kind:'correction',scope:'project',phase_id:null,supersedes:[]});if($('correction-input'))$('correction-input').value='';toast('수정 지시를 프로젝트 기록에 저장했습니다.');}catch(err){toast(err.message);}});
+-  document.addEventListener('click',e=>{if(e.target.closest('#clear-reply')){replyId=null;renderReply();}});
++  document.addEventListener('click',e=>{if(e.target.closest('#clear-reply')){replyId=null;renderReply();}if(e.target.closest('#clear-cross-review')){reviewTarget=null;renderCrossReviewBanner();}});
+   function connectionValue(value) {if(value===null||value===undefined||value===''||value==='Unknown / not provided')return '제공되지 않음';const names={not_logged_in_in_current_cli_environment:'현재 CLI 로그인 안 됨',not_logged_in:'로그인 안 됨',not_checked:'확인하지 않음',unknown:'확인 안 됨',true:'인증 확인',false:'미인증'};return names[String(value)]||String(value);}
+   function transportLabel(value) {return ({success:'성공',error:'오류',nonzero_exit:'비정상 종료',timeout:'시간 초과',malformed:'형식 오류',malformed_output:'형식 오류',mismatch:'ID 불일치',conversation_mismatch:'대화 ID 불일치',cancel:'취소 대기',wait_for_cancel:'취소 대기',output_overflow:'출력 한도 초과',prepared_live:'실행 계획',local_fixture:'로컬 검사',historical_import:'과거 기록'})[value]||value;}
+   function modeBadge(record) {const m=WorkroomProjection.mode(record);return `<span class="transport-badge ${m}" title="${esc(WorkroomProjection.modes[m])}">${esc(WorkroomProjection.modes[m])}</span>`;}
+   function runReceipt(run) {const receipt=run.receipt||{}, usage=receipt.usage||receipt.result_usage||run.usage||{};return `<div class="receipt-grid"><span>제공자 실행 ID<strong>${esc(connectionValue(receipt.provider_run_id||run.provider_run_id))}</strong></span><span>대화 ID<strong>${esc(connectionValue(receipt.conversation_id||run.conversation_id))}</strong></span><span>보고된 모델<strong>${esc(connectionValue(receipt.model||run.model))}</strong></span><span>계정<strong>${esc(connectionValue(receipt.account_identity||'unknown'))}</strong></span><span>시작 → 종료<strong>${esc(receipt.started_at||run.started_at||'미제공')}<br>${esc(receipt.finished_at||run.finished_at||'미제공')}</strong></span><span>이 영수증의 보고 사용량 · 누적값일 수 있음<strong>${WorkroomProjection.mode(run)==='synthetic'?'해당 없음 · AI 사용량 아님':WorkroomProjection.reportedUsage(run)!==null?esc(WorkroomProjection.reportedUsage(run).toLocaleString())+' tokens':'제공되지 않음'}</strong></span></div>`;}
+-  function transportCard(run) {const synthetic=WorkroomProjection.mode(run)==='synthetic',historical=WorkroomProjection.mode(run)==='historical',pending=WorkroomProjection.mode(run)==='live_pending';return `<article class="transport-record"><div class="transport-record-head"><strong>${esc(run.provider||run.connector_id||'로컬 검사')} · ${esc(transportLabel(run.scenario||run.run_kind||'전송'))}</strong>${modeBadge(run)}</div><div class="metric-row"><span>전송 상태</span><strong>${esc(labels[run.status]||run.status)}</strong></div><p class="scenario-note">${synthetic?'실제 로컬 자식 프로세스의 전송 검사입니다. AI 제공자 실행이나 리뷰 통과를 뜻하지 않습니다.':historical?'기존 실행 영수증의 과거 기록입니다. 현재 연결·현재 프로젝트 검증 근거로 사용하지 않습니다.':'계획만 로컬 저장했습니다. 제공자에게 제출하지 않았습니다.'}</p>${run.error?`<pre class="detail-output">${esc(typeof run.error==='string'?run.error:JSON.stringify(run.error,null,2))}</pre>`:''}${run.receipt?runReceipt(run):''}${run.receipt&&('stdout_preview' in run.receipt||'stderr_preview' in run.receipt)?`<details><summary>캡처 출력 · stdout / stderr</summary><div class="capture-label">stdout${run.receipt.stdout_preview_truncated?' · 앞 16 KiB':''}</div><pre class="detail-output">${esc(run.receipt.stdout_preview||'(빈 출력)')}</pre><div class="capture-label">stderr${run.receipt.stderr_preview_truncated?' · 앞 16 KiB':''}</div><pre class="detail-output">${esc(run.receipt.stderr_preview||'(빈 출력)')}</pre></details>`:''}${run.plan?`<details><summary>정확한 실행 계획 보기 · 제출 안 됨</summary><pre class="detail-output">${esc(JSON.stringify(run.plan,null,2))}</pre><button class="button secondary" disabled title="외부 AI 실행은 승인되지 않았습니다">실제 제공자 실행 · 비활성</button></details>`:''}${run.receipt?`<details><summary>원본 영수증 필드</summary><pre class="detail-output">${esc(JSON.stringify(run.receipt,null,2))}</pre></details>`:''}${synthetic&&['queued','running'].includes(run.status)?`<button class="button secondary" data-cancel-run="${esc(run.id)}">로컬 검사 취소</button>`:''}${pending?'<span class="scenario-note">실행 대기 · 승인 없음</span>':''}</article>`;}
++  function transportCard(run) {const synthetic=WorkroomProjection.mode(run)==='synthetic',historical=WorkroomProjection.mode(run)==='historical',pending=WorkroomProjection.mode(run)==='live_pending';return `<article class="transport-record"><div class="transport-record-head"><strong>${esc(run.provider||run.connector_id||'로컬 검사')} · ${esc(transportLabel(run.scenario||run.run_kind||'전송'))}</strong>
++${modeBadge(run)}</div><div class="metric-row"><span>전송 상태</span><strong>${esc(labels[run.status]||run.status)}</strong></div><p class="scenario-note">${synthetic?'실제 로컬 자식 프로세스의 전송 검사입니다. AI 제공자 실행이나 리뷰 통과를 뜻하지 않습니다.':historical?'기존 실행 영수증의 과거 기록입니다. 현재 연결·현재 프로젝트 검증 근거로 사용하지 않습니다.':'계획만 로컬 저장했습니다. 제공자에게 제출하지 않았습니다.'}</p>${run.error?`<pre class="detail-output">${esc(typeof run.error==='string'?run.error:JSON.stringify(run.error,null,2))}</pre>`:''}${run.receipt?runReceipt(run):''}${run.receipt&&('stdout_preview' in run.receipt||'stderr_preview' in run.receipt)?`<details><summary>캡처 출력 · stdout / stderr</summary><div class="capture-label">stdout${run.receipt.stdout_preview_truncated?' · 앞 16 KiB':''}</div><pre class="detail-output">${esc(run.receipt.stdout_preview||'(빈 출력)')}</pre><div class="capture-label">stderr${run.receipt.stderr_preview_truncated?' · 앞 16 KiB':''}</div><pre class="detail-output">${esc(run.receipt.stderr_preview||'(빈 출력)')}</pre></details>`:''}${run.plan?`<details><summary>정확한 실행 계획 보기 · 제출 안 됨</summary><pre class="detail-output">${esc(JSON.stringify(run.plan,null,2))}</pre><button class="button secondary" disabled title="외부 AI 실행은 승인되지 않았습니다">실제 제공자 실행 · 비활성</button></details>`:''}${run.receipt?`<details><summary>원본 영수증 필드</summary><pre class="detail-output">${esc(JSON.stringify(run.receipt,null,2))}</pre></details>`:''}${synthetic&&['queued','running'].includes(run.status)?`<button class="button secondary" data-cancel-run="${esc(run.id)}">로컬 검사 취소</button>`:''}${pending?'<span class="scenario-note">실행 대기 · 승인 없음</span>':''}</article>`;}
+   function renderConnections() {
+     const content=$('connections-content'),scroll=$('connections-dialog').scrollTop,sources=list(state.history_sources);
+     content.innerHTML=`<div class="connection-summary">현재 연결, 과거 영수증, 로컬 전송 검사를 따로 확인합니다. 실제 외부 AI 호출은 비활성 상태입니다.</div><div class="connection-provider-grid">${agents().map(a=>{const c=state.connections.find(c=>c.id===a.connector_id)||{},detected=c.detected===true,cls=roleClass(a);return `<section class="connection-provider"><div class="transport-record-head"><strong>${esc(characterFor(a).actor_name)}</strong>${modeBadge(c)}</div><p>${detected?'설치 확인':'설치 미확인'} ${esc(c.version||c.cli_version||'')}<br>연결: ${c.connected?'연결됨':'미연결'} · 실행 ${c.authorized?'승인됨':'미승인'}<br>인증: ${esc(connectionValue(c.authenticated||'not_checked'))}<br>계정: ${esc(connectionValue(c.account_identity||'unknown'))}</p><small>${cls==='codex'?'CLI 로그인 상태와 Codex 앱 인증은 별개입니다.':cls==='gemini'?'현재 인증을 새로 확인하지 않았습니다.':'실행 파일 탐지와 연결·인증은 별개입니다.'}</small>${c.smoke?`<details class="smoke-result"><summary>${c.smoke.status==='succeeded'?'실제 연결 검사 통과':'연결 검사 보류'}</summary><small>새 합성 텍스트 검사 · 프로젝트 완료와 별개</small><pre>${esc(JSON.stringify(c.smoke,null,2))}</pre></details>`:''}</section>`;}).join('')}</div><section class="connection-section"><h3>검토 실행 계획 <span>계획만 저장</span></h3><p>선택한 기존 작업의 검토 계획과 프롬프트를 로컬 기록에 저장합니다.</p><form id="prepare-run-form"><div class="connection-form-row"><label>제공자<select id="plan-provider"><option value="antigravity">Gemini / Antigravity</option><option value="claude">Claude Code</option><option value="codex">Codex CLI</option></select></label><label>기존 작업<select id="plan-phase" required><option value="">작업 선택</option>${state.tasks.map(t=>`<option value="${esc(t.id)}">${esc(t.title)} · ${esc(labels[t.status]||t.status)}</option>`).join('')}</select></label></div><label>검토 프롬프트<textarea id="plan-prompt" class="correction-input" required maxlength="64000" placeholder="검토할 내용과 확인할 지시를 입력하세요"></textarea></label><label>요청 모델 (선택)<input id="plan-model" placeholder="미입력 시 제공되지 않음" maxlength="200"></label><div class="connection-actions"><button type="submit" class="button secondary" data-transport-write>계획만 로컬 저장</button><button type="button" class="button secondary" disabled>실제 실행 · 승인 없음</button></div></form></section><section class="connection-section"><h3>로컬 전송 검사 <span>모의 · 외부 호출 없음</span></h3><p>합성 출력을 내는 로컬 자식 프로세스로 파서, 오류, 시간 제한, 취소를 확인합니다.</p><div class="fixture-controls">${[['success','성공'],['error','오류'],['timeout','시간 초과'],['malformed','형식 오류'],['mismatch','ID 불일치'],['cancel','취소 대기']].map(([key,label])=>`<button class="button secondary" data-fixture-run="${key}" data-transport-write>${label}</button>`).join('')}</div></section><section class="connection-section"><h3>과거 실행 영수증 <span>과거 기록</span></h3><p>등록된 출처의 해시를 검증하여 가져옵니다. 현재 연결이나 리뷰 판정으로 바뀌지 않습니다.</p><form id="history-form"><label>신뢰 목록 출처<select id="history-source" required><option value="">출처 선택</option>${sources.map(source=>`<option value="${esc(source.id)}" ${source.already_imported?'disabled':''}>${esc(source.label||source.id)}${source.already_imported?' · 가져옴':''}</option>`).join('')}</select></label><button type="submit" class="button secondary" data-transport-write ${sources.some(x=>!x.already_imported)?'':'disabled'}>과거 기록 가져오기</button></form><div class="token-summary"><strong>${state.runs.filter(r=>WorkroomProjection.mode(r)==='historical').length} <span>가져온 과거 영수증</span></strong><small>사용량은 각 영수증의 보고된 누적값입니다. 서로 더하지 않으며 이번 작업의 신규 호출량이나 비용이 아닙니다.</small></div></section><section class="connection-section"><h3>전송 및 영수증 기록 <span>${state.runs.filter(r=>r.run_kind).length}</span></h3>${[...state.runs].filter(r=>r.run_kind).reverse().slice(0,30).map(transportCard).join('')||'<p>아직 전송 기록이 없습니다.</p>'}</section>`;
+@@ -123,12 +238,12 @@
+   $('connections-button').onclick=()=>{renderConnections();$('connections-dialog').showModal();};$('close-connections').onclick=()=>$('connections-dialog').close();$('connections-dialog').onclick=e=>{if(e.target===$('connections-dialog'))$('connections-dialog').close();};
+   document.addEventListener('input',e=>{const keys={'plan-provider':'provider','plan-phase':'phase_id','plan-prompt':'prompt','plan-model':'model','history-source':'source_id'};if(keys[e.target.id])connectionDraft[keys[e.target.id]]=e.target.value;});
+   document.addEventListener('submit',async e=>{if(!['prepare-run-form','history-form'].includes(e.target.id))return;e.preventDefault();try{if(e.target.id==='prepare-run-form'){const phase_id=$('plan-phase').value;if(!phase_id)throw Error('기존 작업을 먼저 선택하세요.');await command('prepare_run',{provider:$('plan-provider').value,phase_id,prompt:$('plan-prompt').value.trim(),model:$('plan-model').value.trim()||null,conversation_id:null});toast('계획을 로컬에 저장했습니다. 제공자에게 제출하지 않았습니다.');}else{const source_id=$('history-source').value;if(!source_id)throw Error('등록된 과거 출처를 선택하세요.');await command('import_history',{source_id});toast('과거 영수증을 가져왔습니다. 현재 실행은 이루어지지 않았습니다.');}renderConnections();}catch(error){toast(error.message);}});
+-  document.addEventListener('click',async e=>{const fixture=e.target.closest('[data-fixture-run]'),cancel=e.target.closest('[data-cancel-run]');if(!fixture&&!cancel)return;try{await command(fixture?'start_fixture_run':'cancel_run',fixture?{scenario:fixture.dataset.fixtureRun,phase_id:null}:{run_id:cancel.dataset.cancelRun});renderConnections();toast(fixture?'로컬 합성 전송 검사를 시작했습니다.':'로컬 검사 취소를 기록했습니다.');}catch(error){toast(error.message);}});
++  document.addEventListener('click',async e=>{const fixture=e.target.closest('[data-fixture-run]'),cancel=e.target.closest('[data-cancel-run]');if(!fixture&&!cancel)return;try{await command(fixture?'start_fixture_run':'cancel_run',fixture?{scenario:fixture.dataset.fixtureRun,phase_id:null}:{run_id:cancel.dataset.cancelRun});if($('connections-dialog')?.open)renderConnections();toast(fixture?'로컬 합성 전송 검사를 시작했습니다.':'실행 취소를 요청했습니다.');}catch(error){toast(error.message);}});
+   function showUpload(text,error=false,cancel=false,ready=false) {const box=$('upload-status');box.hidden=false;box.className='upload-status'+(error?' error':'');box.innerHTML=`<span>${esc(text)}</span><span class="upload-actions">${ready?'<button id="start-upload">로컬 저장</button>':''}${cancel?'<button id="cancel-upload">취소</button>':'<button id="dismiss-upload" aria-label="업로드 알림 닫기">×</button>'}</span>`;renderControls();}
+   async function cancelUploadJob(job) {job.cancelled=true;if(!job.id){showUpload('파일 준비를 취소했습니다.');return;}if(job.cancelling)return;job.cancelling=true;showUpload(`${job.name} · 취소 중`);try{await command('cancel_upload',{upload_id:job.id});showUpload(`${job.name} · 취소됨 · 저장되지 않음`);if(uploadJob===job)uploadJob=null;}catch(e){const terminal=state.uploads.find(u=>u.id===job.id);if(terminal?.status==='completed')showUpload(`${job.name} · 로컬 저장 완료 · 취소보다 완료가 먼저 확정됨`);else showUpload(e.message,true);if(uploadJob===job)uploadJob=null;}finally{renderControls();}}
+   async function finishUploadJob(job) {if(!job||job.transferring||job.cancelled)return;job.transferring=true;showUpload(`${job.name} · 로컬 전송 중`,false,true);try{await command('send_upload',{upload_id:job.id,text:job.text});if(job.cancelled)return;showUpload(`${job.name} · 로컬 저장 확인 중`,false,true);await command('complete_upload',{upload_id:job.id});const done=state.uploads.find(u=>u.id===job.id);if(done?.status!=='completed')throw Error('서버에서 업로드 완료를 확인하지 못했습니다.');showUpload(`${job.name} · 로컬 저장 완료 · 제공자에게 전달되지 않음`);}catch(e){if(!job.cancelled)showUpload(e.message,true);}finally{if(!job.cancelled&&uploadJob===job)uploadJob=null;renderControls();}}
+   $('upload-button').onclick=()=>$('file-input').click();$('file-input').onchange=async()=>{const file=$('file-input').files[0];$('file-input').value='';if(!file||uploadJob)return;const job={cancelled:false,id:null,name:file.name,text:null,transferring:false};uploadJob=job;renderControls();showUpload(`${file.name} · 읽는 중`,false,true);try{if(file.size>256*1024)throw Error('업로드 실패: 텍스트 파일은 256 KiB 이하여야 합니다.');if(!/\.(txt|md|json|csv|log|py|js|html|css)$/i.test(file.name))throw Error('업로드 실패: 지원되는 텍스트 확장자를 선택하세요.');const bytes=new Uint8Array(await file.arrayBuffer()), text=new TextDecoder('utf-8',{fatal:true}).decode(bytes);if(text.includes('\u0000'))throw Error('업로드 실패: 일반 UTF-8 텍스트 파일만 지원합니다.');if(job.cancelled){uploadJob=null;return;}job.text=text;const r=await command('begin_upload',{name:file.name,size:new TextEncoder().encode(text).length});job.id=r.upload_id||r.result?.upload_id||[...state.uploads].reverse().find(u=>u.name===file.name&&u.status==='pending')?.id;if(!job.id)throw Error('업로드 ID를 확인할 수 없습니다.');if(job.cancelled){await cancelUploadJob(job);return;}showUpload(`${file.name} · 준비됨 · 로컬 저장 대기 (아직 저장되지 않음)`,false,true,true);}catch(e){showUpload(e instanceof TypeError?'업로드 실패: 올바른 UTF-8 텍스트 파일인지 확인하세요.':e.message,true);if(uploadJob===job)uploadJob=null;}finally{renderControls();}};
+   document.addEventListener('click',e=>{if(e.target.closest('#dismiss-upload'))$('upload-status').hidden=true;if(e.target.closest('#start-upload')&&uploadJob)finishUploadJob(uploadJob);if(e.target.closest('#cancel-upload')&&uploadJob)cancelUploadJob(uploadJob);});
+   setView('chat');render();refresh();setInterval(()=>{if(!document.hidden&&!busy)refresh();},3000);
+-  window.WorkroomUI={get worldRendererDiagnostics(){return worldRenderer?.getDiagnostics()||null;},get view(){return view;},get selectedProject(){return selectedProject;},get selectedTask(){return selectedTask;},get selectedAgent(){return selectedAgent;},get confirmedCompletionKeys(){return confirmedEvents().map(e=>e.completion_key||e.payload?.completion_key);}};
++  window.WorkroomUI={get worldRendererDiagnostics(){return worldRenderer?.getDiagnostics()||null;},get view(){return view;},get selectedProject(){return selectedProject;},get selectedTask(){return selectedTask;},get selectedAgent(){return selectedAgent;},get reviewTarget(){return reviewTarget;},get confirmedCompletionKeys(){return confirmedEvents().map(e=>e.completion_key||e.payload?.completion_key);}};
+ })();
+--- a/static/style.css
++++ b/static/style.css
+@@ -23,3 +23,24 @@
+ .brand-logo{width:31px;height:31px;object-fit:contain;flex-shrink:0}.sidebar-bottom img.small-logo{padding:0;background:none;object-fit:contain}
+ 
+ .world-3d-canvas{display:block;width:100%;height:380px;touch-action:pan-y;cursor:pointer;outline:none}.world-tools{display:flex;align-items:center;gap:14px;padding:13px 20px 0;position:relative;z-index:1}.camera-controls{display:flex;gap:3px;margin-left:auto;border:1px solid #48583f;border-radius:5px;padding:2px;background:#202a1b}.camera-controls button{font-size:11px;padding:5px 8px;min-width:28px;border-radius:3px}.camera-controls button:hover{background:#34452a}.world-accessible-controls{display:flex;justify-content:center;align-items:center;gap:8px;padding:5px 16px 15px;flex-wrap:wrap}.world-accessible-controls .button{font-size:11px;padding:6px 11px}.world-accessible-controls [aria-pressed=true]{border-color:#b5cea0;background:#3a4d2f}.renderer-details{font-size:10px;color:#a3b394}.renderer-details summary{cursor:pointer}.renderer-details[open]{position:absolute;right:15px;top:10px;width:275px;padding:10px;background:#1c2617;border:1px solid #526348;border-radius:6px;z-index:5}.renderer-details .detail-output{max-height:250px;font-size:10px}.world-stage{position:relative}.world-stage:has(.world-3d-canvas:not([hidden])) .world-hint{bottom:7px}@media(max-width:760px){.world-3d-canvas{height:320px}.world-tools{padding:12px 14px 0;gap:9px}.renderer-details{font-size:10px}.camera-controls button{font-size:10px;padding:5px}.world-accessible-controls{gap:6px}.world-accessible-controls .button{font-size:11px;padding:6px 9px}}
++
++/* Unified 3-provider chat & cross-review controls */
++.composer-providers{display:flex;align-items:center;gap:12px;padding:10px 15px 6px;border-bottom:1px solid #35442b;flex-wrap:wrap;font-size:12px;color:#b8c8ab}
++.composer-providers-label{font-weight:600;color:#d0dec3;font-size:11px}
++.provider-check{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border:1px solid #445638;border-radius:5px;background:#192116;cursor:pointer;font-size:12px;color:#d6e3ca}
++.provider-check input{accent-color:#a8c77f;margin:0}
++.provider-check small{font-size:10px;color:#8ba07b}
++.composer-mode-tag{margin-left:auto;font-size:10px;padding:3px 7px;border:1px solid #516b43;border-radius:4px;background:#23301c;color:#b8d59e}
++.provider-run-board{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px}
++.provider-run-card{border:1px solid #36462d;background:#1a2217;border-radius:6px;padding:10px 12px;font-size:11px;display:flex;flex-direction:column;gap:6px}
++.provider-run-head{display:flex;justify-content:space-between;align-items:center;gap:6px}
++.provider-run-head strong{font-size:12px;color:#dce7d2}
++.provider-run-meta{font-size:10px;color:#8fa380;line-height:1.5;display:flex;justify-content:space-between;gap:6px;flex-wrap:wrap}
++.provider-run-status{font-size:10px;padding:2px 6px;border-radius:4px;border:1px solid #495c3c;background:#24301e;color:#c9ddb5}
++.provider-run-status.running,.provider-run-status.queued{border-color:#8cb86c;color:#dcf2c4;background:#2d4022}
++.provider-run-status.failed,.provider-run-status.timed_out,.provider-run-status.disconnected,.provider-run-status.uncertain{border-color:#9e6b52;color:#eabba4;background:#36241c}
++.provider-run-status.cancelled,.provider-run-status.cancel_requested{border-color:#7c7852;color:#dfd6a7;background:#2f2d1d}
++.cross-review-banner{border-left-color:#91b8c8;background:#1d2b30;color:#cfe3ec;align-items:center;flex-wrap:wrap}
++.cross-review-inline{margin-top:8px;padding:8px 10px;border:1px solid #3a4c30;border-radius:5px;background:#182015;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11px}
++.cross-review-inline button.review-dispatch{padding:4px 9px;border-radius:4px;background:#374b2b;border:1px solid #63824e;color:#dff0c8;font-size:11px;font-weight:600}
++@media(max-width:760px){.provider-run-board{grid-template-columns:1fr}.composer-mode-tag{margin-left:0}}
+--- a/README.md
++++ b/README.md
+@@ -47,3 +47,34 @@
+ 기존 Python119개 및 원래 MVP70개 검사 기록은 보존했습니다. 필요할 때 `python -m unittest discover -v`, `python verify_http_transport.py`, `python verify_character_assets.py`로 해당 범위를 재검증할 수 있습니다. `BRIDGE-PINS.json` 고정 해시와 공유 bridge 원본은 변경하지 않습니다.
+ 
+ 재개점은 `CHECKPOINT.json`입니다. 다음은 브라우저 도구 복구 후 실제 3D·로고 화면과 성능 검증, 인증 실행 문맥 통합, 별도 승인된 최소 smoke입니다. 전체 프로젝트는 진행 중입니다.
++
++
++## 3개 제공자 통합 채팅 · 교차 검토 최소 구현 (오프라인/합성 어댑터 기준)
++
++이번 변경에서는 기존 Glance 본체의 한 채팅방에서 **ChatGPT(`codex` / `codex_dot`), Claude(`claude`), Gemini(`antigravity`)** 중 1개 이상을 선택해 동일 요청을 보내고, 제공자별 독립 응답을 확인한 뒤, 특정 응답을 다른 제공자에게 **교차 검토(Cross-Review)** 대상으로 전달하는 최소 흐름을 구현했습니다.
++
++- **A. 단일 입력과 제공자 선택 (`send_chat_request`)**:
++  - 채팅 입력창 상단 체크박스에서 `ChatGPT`, `Claude`, `Gemini` 중 1~3개를 선택해 동시 전송합니다.
++  - 화면 표시 이름(`ChatGPT`, `Claude`, `Gemini`), 내부 제공자/연결기 ID(`codex`/`codex_dot`, `claude`, `antigravity`), 모델 ID(`requested_model`, 미지정 시 `None`, 합성 실행 시 `reported_model`)를 분리해 기록·표시합니다.
++- **B. 제공자별 독립 실행 상태 (`provider-run-board` 및 개별 worker)**:
++  - 제공자별로 `queued`(접수/대기열) → `running`(응답 중) → `succeeded`(완료) / `failed`·`timed_out`(실패·시간 초과) / `cancelled`(취소) 상태를 독립 표시합니다.
++  - 한 제공자가 실패하거나 시간 초과되어도 다른 제공자의 정상 응답을 덮어쓰거나 막지 않으며, 실패를 가짜 정상 응답으로 대체하지 않습니다.
++- **C. 선택한 응답의 교차 검토 (`request_cross_review`)**:
++  - 완료된 제공자 응답 카드에서 `[⇄ 다른 제공자에게 검토 전달]`을 누르면 **원질문 + 선택한 답변 원문 + 공통 맥락 스냅샷(`effective_instructions`)**만 묶어 대상 제공자에게 전달합니다(무관한 대화 이력이나 업로드 파일은 포함하지 않음).
++  - `review_of_run_id`, `review_of_message_id`, `source_question_message_id`로 어떤 응답에 대한 검토인지 원본 ID 참조를 유지합니다.
++- **D. 공통 맥락 스냅샷과 대화 저장·복원**:
++  - 동시 요청된 제공자들은 동일 시점의 `context_snapshot`(`snapshot_id`, `instruction_version`, `effective_instructions`)을 공유합니다.
++  - 제공자별 응답 원문, 오류, 출처(`synthetic_fixture` vs `historical_external_execution` vs `manual_import`), 시작/종료 시각을 분리 저장하며, 새로고침/재시작 시 이전 실행을 재전송하지 않고 복원합니다(재시작 시점의 미완료 실행은 `disconnected`/`INTERRUPTED`로 격리).
++- **E. 반복 입력(`client_request_id`)과 취소 경합 보호**:
++  - 동일한 `client_request_id`의 중복 재전송은 `unchanged: True`로 차단하고, 같은 문장이라도 사용자가 새로 보낸 질문(새 `client_request_id`)은 별도 실행으로 보존합니다.
++  - 취소(`cancel_run`) 요청 이후 늦게 도착한 응답(`succeeded`)은 `late_response_ignored: True`로 무시되어 취소된 실행이 완료 상태로 되살아나지 않습니다(자동 재시도 `retry=0`).
++
++### 통합 채팅 합성 검증 실행 명령
++
++```powershell
++python -m unittest test_unified_chat test_workroom test_providers -v
++node --test static/unified_chat.test.cjs static/projection.test.cjs static/world3d.test.cjs
++node --check static/app.js
++```
++
++> **상태 구분**: **통합 채팅 로컬 구현·합성 검증 완료** (외부 AI 호출 0회) / **실제 3개 제공자 연결 확인 완료 아님** (실제 외부 제공자 호출은 사용자 사전 승인 전까지 비활성).
+--- /dev/null
++++ b/test_unified_chat.py
+@@ -0,0 +1,328 @@
++"""Unified 3-provider chat and cross-review verification suite (offline synthetic adapter only)."""
++from __future__ import annotations
++
++import hashlib
++import json
++from pathlib import Path
++import tempfile
++import time
++import unittest
++from unittest.mock import patch
++
++from workroom import DomainError, Workroom
++
++
++class UnifiedChatVerificationTests(unittest.TestCase):
++    """Verifies all 7 mandatory scenarios for the 3-provider unified chat flow."""
++
++    def setUp(self):
++        self.tmp = tempfile.TemporaryDirectory()
++        self.registry = Path(self.tmp.name, "sources.json")
++        self.registry.write_text("{}")
++        self.room = Workroom(self.tmp.name, history_registry_path=self.registry)
++
++    def tearDown(self):
++        self.room.close()
++        self.tmp.cleanup()
++
++    def command(self, command_name, **payload):
++        return self.room.command(command_name, self.room.state()["version"], payload)
++
++    def wait_runs(self, run_ids, timeout=10.0):
++        deadline = time.monotonic() + timeout
++        while time.monotonic() < deadline:
++            state = self.room.state()
++            by_id = {r["id"]: r for r in state["runs"] if r["id"] in run_ids}
++            if len(by_id) == len(run_ids) and all(
++                r["status"] not in ("queued", "running", "cancel_requested") for r in by_id.values()
++            ):
++                return [by_id[rid] for rid in run_ids]
++            time.sleep(0.02)
++        self.fail("Unified chat runs did not reach terminal states within timeout")
++
++    def test_1_three_providers_succeed_concurrently_with_shared_context_and_distinct_identities(self):
++        self.command("add_instruction", text="모든 제안에는 확인 가능한 근거를 포함할 것", kind="instruction", scope="project")
++        result = self.command(
++            "send_chat_request",
++            text="다음 작업으로 무엇을 먼저 진행해야 할지 제안해줘.",
++            providers=["codex", "claude", "antigravity"],
++            client_request_id="req-3-success",
++        )
++        run_ids = result["run_ids"]
++        self.assertEqual(3, len(run_ids))
++        self.assertEqual(["codex", "claude", "antigravity"], result["selected_providers"])
++
++        queued_runs = [r for r in result["state"]["runs"] if r["id"] in run_ids]
++        self.assertEqual(3, len(queued_runs))
++
++        finished_runs = self.wait_runs(run_ids)
++        by_provider = {r["provider"]: r for r in finished_runs}
++        self.assertEqual({"codex", "claude", "antigravity"}, set(by_provider.keys()))
++
++        self.assertEqual("ChatGPT", by_provider["codex"]["display_name"])
++        self.assertEqual("codex_dot", by_provider["codex"]["connector_id"])
++        self.assertIsNone(by_provider["codex"]["requested_model"])
++        self.assertEqual("synthetic-codex-fixture", by_provider["codex"]["reported_model"])
++
++        self.assertEqual("Claude", by_provider["claude"]["display_name"])
++        self.assertEqual("claude", by_provider["claude"]["connector_id"])
++        self.assertIsNone(by_provider["claude"]["requested_model"])
++        self.assertEqual("synthetic-claude-fixture", by_provider["claude"]["reported_model"])
++
++        self.assertEqual("Gemini", by_provider["antigravity"]["display_name"])
++        self.assertEqual("antigravity", by_provider["antigravity"]["connector_id"])
++        self.assertIsNone(by_provider["antigravity"]["requested_model"])
++        self.assertEqual("synthetic-antigravity-fixture", by_provider["antigravity"]["reported_model"])
++
++        snapshots = {r["context_snapshot"]["snapshot_id"] for r in finished_runs}
++        self.assertEqual(1, len(snapshots))
++        for p, r in by_provider.items():
++            self.assertEqual("succeeded", r["status"], p)
++            self.assertEqual("synthetic_fixture", r["provenance"], p)
++            self.assertIn("다음 작업으로 무엇을 먼저 진행해야 할지 제안해줘.", r["response"])
++            self.assertIn("모든 제안에는 확인 가능한 근거를 포함할 것", r["response"])
++
++    def test_2_one_provider_fails_or_times_out_while_remaining_two_succeed(self):
++        res_fail = self.command(
++            "send_chat_request",
++            text="부분 실패 격리 검증 질문입니다.",
++            providers=["codex", "claude", "antigravity"],
++            scenarios={"codex": "success", "claude": "nonzero_exit", "antigravity": "success"},
++            client_request_id="req-partial-fail",
++        )
++        runs_fail = {r["provider"]: r for r in self.wait_runs(res_fail["run_ids"])}
++        self.assertEqual("succeeded", runs_fail["codex"]["status"])
++        self.assertEqual("succeeded", runs_fail["antigravity"]["status"])
++        self.assertEqual("failed", runs_fail["claude"]["status"])
++        self.assertEqual("NONZERO_EXIT", runs_fail["claude"]["failure"]["code"])
++        self.assertEqual("", runs_fail["claude"]["response"] or "")
++        self.assertIn("부분 실패 격리 검증 질문입니다.", runs_fail["codex"]["response"])
++        self.assertIn("부분 실패 격리 검증 질문입니다.", runs_fail["antigravity"]["response"])
++
++        res_timeout = self.command(
++            "send_chat_request",
++            text="부분 시간 초과 격리 검증 질문입니다.",
++            providers=["codex", "claude", "antigravity"],
++            scenarios={"codex": "success", "claude": "success", "antigravity": "timeout"},
++            client_request_id="req-partial-timeout",
++        )
++        runs_timeout = {r["provider"]: r for r in self.wait_runs(res_timeout["run_ids"])}
++        self.assertEqual("succeeded", runs_timeout["codex"]["status"])
++        self.assertEqual("succeeded", runs_timeout["claude"]["status"])
++        self.assertEqual("timed_out", runs_timeout["antigravity"]["status"])
++        self.assertEqual("TIMEOUT", runs_timeout["antigravity"]["failure"]["code"])
++        self.assertEqual("", runs_timeout["antigravity"]["response"] or "")
++
++    def test_3_cross_review_passes_only_question_selected_answer_and_common_context(self):
++        self.command("send_message", text="무관한 과거 잡담 메시지 (검토 프롬프트에 들어가면 안 됨)", agent_id="codex")
++        up = self.command("begin_upload", name="unrelated.txt", size=14)["state"]["uploads"][-1]["id"]
++        self.command("send_upload", upload_id=up, text="unrelated file")
++        self.command("complete_upload", upload_id=up)
++
++        self.command("add_instruction", text="보안 자격증명 파일 접근 금지", kind="instruction", scope="project")
++
++        chat_res = self.command(
++            "send_chat_request",
++            text="통합 채팅 상태 저장 구조를 어떻게 설계할까?",
++            providers=["codex", "claude"],
++            client_request_id="req-for-review",
++        )
++        question_msg_id = chat_res["message_id"]
++        finished = {r["provider"]: r for r in self.wait_runs(chat_res["run_ids"])}
++        codex_run = finished["codex"]
++        self.assertEqual("succeeded", codex_run["status"])
++
++        review_res = self.command(
++            "request_cross_review",
++            source_run_id=codex_run["id"],
++            source_message_id=codex_run["response_event_id"],
++            target_providers=["claude", "antigravity"],
++            review_note="누락된 예외 처리나 취소 경합 조건이 있는지 검토해줘.",
++            client_request_id="req-cross-review-1",
++        )
++        self.assertEqual(codex_run["id"], review_res["review_of_run_id"])
++        self.assertEqual(codex_run["response_event_id"], review_res["review_of_message_id"])
++        self.assertEqual(question_msg_id, review_res["source_question_message_id"])
++
++        review_runs = {r["provider"]: r for r in self.wait_runs(review_res["run_ids"])}
++        self.assertEqual({"claude", "antigravity"}, set(review_runs.keys()))
++
++        for provider, r in review_runs.items():
++            self.assertEqual("succeeded", r["status"], provider)
++            self.assertEqual(codex_run["id"], r["review_of_run_id"])
++            self.assertEqual(codex_run["response_event_id"], r["review_of_message_id"])
++            self.assertEqual(question_msg_id, r["source_question_message_id"])
++            self.assertEqual("codex", r["review_source_provider"])
++
++            plan_doc = next(p for p in self.room.state()["execution_plans"] if p["id"] == r["plan_id"])
++            sent_prompt = plan_doc["request"]["input_text"]
++            self.assertIn("[원질문]\n통합 채팅 상태 저장 구조를 어떻게 설계할까?", sent_prompt)
++            self.assertIn("[선택한 응답 (ChatGPT · codex)]", sent_prompt)
++            self.assertIn(codex_run["response"], sent_prompt)
++            self.assertIn("보안 자격증명 파일 접근 금지", sent_prompt)
++            self.assertIn("누락된 예외 처리나 취소 경합 조건이 있는지 검토해줘.", sent_prompt)
++            self.assertNotIn("무관한 과거 잡담 메시지", sent_prompt)
++            self.assertNotIn("unrelated file", sent_prompt)
++
++    def test_4_identical_sentence_re_question_preserved_while_duplicate_request_id_blocked(self):
++        first = self.command(
++            "send_chat_request",
++            text="같은 문장으로 다시 질문합니다.",
++            providers=["codex"],
++            client_request_id="idemp-key-100",
++        )
++        self.wait_runs(first["run_ids"])
++        version_after_first = self.room.state()["version"]
++        runs_count_after_first = len(self.room.state()["runs"])
++
++        dup = self.command(
++            "send_chat_request",
++            text="같은 문장으로 다시 질문합니다.",
++            providers=["codex"],
++            client_request_id="idemp-key-100",
++        )
++        self.assertTrue(dup.get("unchanged"))
++        self.assertEqual("idemp-key-100", dup.get("duplicate_request_id"))
++        self.assertEqual(first["run_ids"], dup.get("run_ids"))
++        self.assertEqual(version_after_first, self.room.state()["version"])
++        self.assertEqual(runs_count_after_first, len(self.room.state()["runs"]))
++
++        second = self.command(
++            "send_chat_request",
++            text="같은 문장으로 다시 질문합니다.",
++            providers=["codex"],
++            client_request_id="idemp-key-101",
++        )
++        self.assertFalse(second.get("unchanged", False))
++        self.assertNotEqual(first["message_id"], second["message_id"])
++        self.assertNotEqual(first["run_ids"], second["run_ids"])
++        self.wait_runs(second["run_ids"])
++        self.assertEqual(runs_count_after_first + 1, len(self.room.state()["runs"]))
++
++    def test_5_late_response_after_cancellation_never_revives_cancelled_run(self):
++        res = self.command(
++            "send_chat_request",
++            text="취소 경합 테스트 요청입니다.",
++            providers=["antigravity"],
++            scenarios={"antigravity": "wait_for_cancel"},
++            client_request_id="req-cancel-late",
++        )
++        run_id = res["run_ids"][0]
++
++        deadline = time.monotonic() + 3.0
++        while time.monotonic() < deadline:
++            r = next(x for x in self.room.state()["runs"] if x["id"] == run_id)
++            if r["status"] == "running":
++                break
++            time.sleep(0.01)
++
++        cancel_res = self.command("cancel_run", run_id=run_id)
++        self.assertEqual("cancel_requested", cancel_res["state"]["runs"][-1]["status"])
++
++        late_receipt = {
++            "status": "succeeded",
++            "outcome": "completed",
++            "conversation_id": "fixture-" + run_id,
++            "model": "synthetic-antigravity-fixture",
++            "response": "Late response that should never overwrite cancellation!",
++            "usage": {"input_tokens": 5, "output_tokens": 5, "total_tokens": 10, "source": "synthetic_fixture"},
++            "finished_at": "2026-10-27T00:00:00Z",
++        }
++        self.room._record_fixture_update(run_id, late_receipt)
++
++        final_run = self.wait_runs([run_id])[0]
++        self.assertEqual("cancelled", final_run["status"])
++        self.assertTrue(final_run.get("late_response_ignored"))
++        self.assertIsNone(final_run["response"])
++
++        self.assertFalse(self.room._record_fixture_update(run_id, late_receipt))
++        self.assertEqual("cancelled", next(x for x in self.room.state()["runs"] if x["id"] == run_id)["status"])
++
++    def test_6_reload_restores_conversation_without_resending_and_marks_inflight_disconnected(self):
++        res = self.command(
++            "send_chat_request",
++            text="재시작 복원 검증 질문입니다.",
++            providers=["codex", "claude"],
++            client_request_id="req-reload-1",
++        )
++        self.wait_runs(res["run_ids"])
++
++        with patch.object(self.room, "_launch_fixture"):
++            inflight_res = self.command(
++                "send_chat_request",
++                text="재시작 직전 미완료 요청입니다.",
++                providers=["antigravity"],
++                client_request_id="req-reload-inflight",
++            )
++        inflight_run_id = inflight_res["run_ids"][0]
++        self.room.close()
++
++        with patch("subprocess.Popen") as spawn:
++            self.room = Workroom(self.tmp.name, history_registry_path=self.registry)
++            spawn.assert_not_called()
++
++        restored = self.room.state()
++        for rid in res["run_ids"]:
++            r = next(x for x in restored["runs"] if x["id"] == rid)
++            self.assertEqual("succeeded", r["status"])
++            self.assertIn("재시작 복원 검증 질문입니다.", r["response"])
++
++        inflight_run = next(x for x in restored["runs"] if x["id"] == inflight_run_id)
++        self.assertEqual("disconnected", inflight_run["status"])
++        self.assertEqual("INTERRUPTED", inflight_run["failure"]["code"])
++
++    def test_7_historical_responses_and_current_synthetic_responses_are_strictly_distinguished(self):
++        source = Path(self.tmp.name, "past-archive.ndjson")
++        source.write_text(
++            json.dumps({"event": "init", "conversation_id": "hist-conv-1", "init": {"model": "gemini-4-argon-medium"}}) + "\n"
++            + json.dumps({
++                "event": "result",
++                "result": {
++                    "conversation_id": "hist-conv-1",
++                    "status": "SUCCESS",
++                    "response": "Past recorded external execution response.",
++                    "usage": {"input_tokens": 100, "output_tokens": 50, "total_tokens": 150},
++                },
++            }) + "\n",
++            encoding="utf-8",
++        )
++        self.registry.write_text(json.dumps({
++            "past-archive-1": {
++                "path": str(source),
++                "sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
++                "provider": "antigravity",
++                "conversation_id": "hist-conv-1",
++                "metadata": {"started_at": "2026-10-26T00:00:00Z", "exit_code": 0},
++                "source_evidence": {"kind": "historical_archive", "scope": "test", "authenticity": "archive_claim"},
++            }
++        }))
++
++        hist_res = self.command("import_history", source_id="past-archive-1")
++        hist_run_id = hist_res["run_id"]
++
++        synth_res = self.command(
++            "send_chat_request",
++            text="이번 합성 실행 요청입니다.",
++            providers=["antigravity"],
++            client_request_id="req-synth-vs-hist",
++        )
++        synth_run_id = synth_res["run_ids"][0]
++        self.wait_runs([synth_run_id])
++
++        state = self.room.state()
++        hist_run = next(r for r in state["runs"] if r["id"] == hist_run_id)
++        synth_run = next(r for r in state["runs"] if r["id"] == synth_run_id)
++
++        self.assertEqual("historical", hist_run["mode"])
++        self.assertEqual("historical_import", hist_run["run_kind"])
++        self.assertEqual("historical_external_execution", hist_run["provenance"])
++        self.assertEqual("historical_record", hist_run["usage"]["source"])
++
++        self.assertEqual("synthetic", synth_run["mode"])
++        self.assertEqual("local_fixture", synth_run["run_kind"])
++        self.assertEqual("synthetic_fixture", synth_run["provenance"])
++        self.assertEqual("synthetic_fixture", synth_run["usage"]["source"])
++
++
++if __name__ == "__main__":
++    unittest.main()
+--- /dev/null
++++ b/static/unified_chat.test.cjs
+@@ -0,0 +1,103 @@
++const test = require("node:test");
++const assert = require("node:assert/strict");
++const projection = require("./app.js");
++
++test("providerCatalog separates display names from provider IDs and connector IDs", () => {
++  assert.deepEqual(projection.providerCatalog.codex, {
++    provider: "codex",
++    connector_id: "codex_dot",
++    display_name: "ChatGPT",
++    character_key: "codex",
++  });
++  assert.deepEqual(projection.providerCatalog.claude, {
++    provider: "claude",
++    connector_id: "claude",
++    display_name: "Claude",
++    character_key: "claude",
++  });
++  assert.deepEqual(projection.providerCatalog.antigravity, {
++    provider: "antigravity",
++    connector_id: "antigravity",
++    display_name: "Gemini",
++    character_key: "gemini",
++  });
++});
++
++test("providerBoardSummary projects independent per-provider statuses, provenance, and review targets", () => {
++  const runs = [
++    {
++      id: "run-codex-1",
++      provider: "codex",
++      connector_id: "codex_dot",
++      status: "succeeded",
++      mode: "synthetic",
++      run_kind: "local_fixture",
++      provenance: "synthetic_fixture",
++      requested_model: null,
++      reported_model: "synthetic-codex-fixture",
++    },
++    {
++      id: "run-claude-1",
++      provider: "claude",
++      connector_id: "claude",
++      status: "failed",
++      mode: "synthetic",
++      run_kind: "local_fixture",
++      provenance: "synthetic_fixture",
++      error: "Synthetic fixture nonzero exit",
++    },
++    {
++      id: "run-agy-review-1",
++      provider: "antigravity",
++      connector_id: "antigravity",
++      status: "running",
++      mode: "synthetic",
++      run_kind: "local_fixture",
++      provenance: "synthetic_fixture",
++      review_of_run_id: "run-codex-1",
++    },
++  ];
++  const board = projection.providerBoardSummary(runs);
++  assert.equal(board.length, 3);
++  assert.equal(board[0].display_name, "ChatGPT");
++  assert.equal(board[0].provider, "codex");
++  assert.equal(board[0].connector_id, "codex_dot");
++  assert.equal(board[0].status, "succeeded");
++  assert.equal(board[0].mode, "synthetic");
++  assert.equal(board[0].requested_model, null);
++  assert.equal(board[0].reported_model, "synthetic-codex-fixture");
++
++  assert.equal(board[1].display_name, "Claude");
++  assert.equal(board[1].status, "failed");
++  assert.equal(board[1].error, "Synthetic fixture nonzero exit");
++
++  assert.equal(board[2].display_name, "Gemini");
++  assert.equal(board[2].provider, "antigravity");
++  assert.equal(board[2].status, "running");
++  assert.equal(board[2].review_of_run_id, "run-codex-1");
++});
++
++test("historical responses and current synthetic responses remain distinct in mode and usage projection", () => {
++  const historicalRun = {
++    id: "hist-1",
++    provider: "antigravity",
++    mode: "historical",
++    run_kind: "historical_import",
++    provenance: "historical_external_execution",
++    status: "succeeded",
++    receipt: { usage: { total_tokens: 1233 } },
++  };
++  const syntheticRun = {
++    id: "synth-1",
++    provider: "antigravity",
++    mode: "synthetic",
++    run_kind: "local_fixture",
++    provenance: "synthetic_fixture",
++    status: "succeeded",
++    receipt: { usage: { total_tokens: 18 } },
++  };
++  assert.equal(projection.mode(historicalRun), "historical");
++  assert.equal(projection.reportedUsage(historicalRun), 1233);
++  assert.equal(projection.mode(syntheticRun), "synthetic");
++  assert.equal(projection.reportedUsage(syntheticRun), null);
++});

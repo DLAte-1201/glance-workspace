@@ -1,0 +1,538 @@
+{
+  "scope": "public source selection, not integrated/retested release",
+  "files": [
+    {
+      "path": "app/.gitignore",
+      "bytes": 128,
+      "sha256": "c18bf101927d3974e9a13fcd33e44dbe11579604b8f16b9c63317c677c93defb",
+      "git_blob_sha1": "5dbe84bec6ac106b67cde2552215a580eae6f6ac",
+      "byte_preserved": true
+    },
+    {
+      "path": "app/fixtures/transport_child.py",
+      "bytes": 2788,
+      "sha256": "74e7ec91e256922bd0d044b28909c0225a25983b370838cba4b7a7740a654e2b",
+      "git_blob_sha1": "0679856da3b76fa86535a85d61daf2710537a515",
+      "byte_preserved": true
+    },
+    {
+      "path": "app/providers.py",
+      "bytes": 28049,
+      "sha256": "4e6020ea320a33d056f4772753d3ecae385fa5fda23b44904fc0c3f8f0882919",
+      "git_blob_sha1": "e862c97a09cb797d062abdc29f7e944aaf521293",
+      "byte_preserved": true
+    },
+    {
+      "path": "app/qa-fixtures/cancel-notes.txt",
+      "bytes": 81,
+      "sha256": "fc6ae276afb4e9a082604a6709e98961f2ceeb95a5e6704b58448fe71da1e7f6",
+      "git_blob_sha1": "3cda4c3d59463b31fd9cc9c7e960e066ed460ae5",
+      "byte_preserved": true
+    },
+    {
+      "path": "app/qa-fixtures/disallowed.exe",
+      "bytes": 142,
+      "sha256": "62afe43e7bebb04fcbfd9881bd906301e5d0be831d7e0a2e94e7516fab7a1f88",
+      "git_blob_sha1": "12e51a5571cc0bcc1812ae60f9790ed42ae14527",
+      "byte_preserved": true
+    },
+    {
+      "path": "app/qa-fixtures/review-notes.txt",
+      "bytes": 213,
+      "sha256": "a6c4dd871086f31d5b89da687d628f1ae9dc3a24cddacfe253457a666ae1570d",
+      "git_blob_sha1": "f95ea2da7977da76019bb7e9d5c26a9a40446d7a",
+      "byte_preserved": true
+    },
+    {
+      "path": "app/qa-fixtures/save-notes.txt",
+      "bytes": 82,
+      "sha256": "8794c3d64933302d63fcd7c75f5c7864b14cb289ccfeca949c54c9b802b02c8a",
+      "git_blob_sha1": "b7a3ac9da7dbfacd5c8ecf9ec35c1bce413a01fc",
+      "byte_preserved": true
+    },
+    {
+      "path": "app/server.py",
+      "bytes": 9223,
+      "sha256": "2e1a383f44dd216cc555dbb79d0b97430ec327a94df9932bcb7d262002a174c9",
+      "git_blob_sha1": "c9ee491f573cfb77ec4384e937db87c824e32846",
+      "byte_preserved": true
+    },
+    {
+      "path": "app/static/app.js",
+      "bytes": 59402,
+      "sha256": "b4d48792f95f9531149c245e5d160a6c73125079d5fff18e25c8b38a66559894",
+      "git_blob_sha1": "aaaf5e02ea33e26d8c946e0f637486c3f5cf3c54",
+      "byte_preserved": true
+    },
+    {
+      "path": "app/static/assets/claude-reference.png",
+      "bytes": 364727,
+      "sha256": "ab4f3ed04b1e7a7d87eb3b4a57f77f7cb8043b8ee647e75429c876036f34a1ae",
+      "git_blob_sha1": "2fdbaf4511ee271104574024d0172eb079e38fcb",
+      "byte_preserved": true
+    },
+    {
+      "path": "app/static/assets/codex-reference.png",
+      "bytes": 298534,
+      "sha256": "6b13e8c9493ed51023aa4c4b0222e2074540a255cdc9faed03e3d5a5142a8b5e",
+      "git_blob_sha1": "b2de6b010476ed980a9aea77ee663266973c575c",
+      "byte_preserved": true
+    },
+    {
+      "path": "app/static/assets/gemini-reference.jpg",
+      "bytes": 39186,
+      "sha256": "235775c37eecd6db38ac5bca6a93941e41a40a5ae4a02f1747bd7240a0aa5326",
+      "git_blob_sha1": "67cad9bf3e71ea21f80d031d9dec6931814dac08",
+      "byte_preserved": true
+    },
+    {
+      "path": "app/static/character.test.cjs",
+      "bytes": 3894,
+      "sha256": "357d747347b2ed5bb82b104c8fd1484ab0745c53e9033b105d3402e3a44251fd",
+      "git_blob_sha1": "32be5fbabfb8b795a99a12145cd40079a7bb37f0",
+      "byte_preserved": true
+    },
+    {
+      "path": "app/static/characters.json",
+      "bytes": 2556,
+      "sha256": "ffec94b9816888b967f5b2c82d14d0ced3017f9a81e3dead87a73b9ec6532fa1",
+      "git_blob_sha1": "0838370642f5f64c6a278a0248930c1af241d434",
+      "byte_preserved": false
+    },
+    {
+      "path": "app/static/glance-logo.svg",
+      "bytes": 1901,
+      "sha256": "09b9437ddebf7d438f9058ec7c897c4fd319731dfb039c72d741313a880bf2df",
+      "git_blob_sha1": "838f980046fc7d346dd244d22eda9637343411f3",
+      "byte_preserved": true
+    },
+    {
+      "path": "app/static/index.html",
+      "bytes": 6012,
+      "sha256": "546c9d3c8dbb836e4ccc81ecfa2c068c78c3989f244c025dc9bf72b3c3aa5fb6",
+      "git_blob_sha1": "20825800a291ccfe0f2d6482151dabc4a23732b7",
+      "byte_preserved": true
+    },
+    {
+      "path": "app/static/projection.test.cjs",
+      "bytes": 3197,
+      "sha256": "5887768120b0ea448e4c99bddf638ff29b51794d1fcc5071cd06e8483fd69f1c",
+      "git_blob_sha1": "84d13adeba0d7c53ca92690ea0f387e2287dfffc",
+      "byte_preserved": true
+    },
+    {
+      "path": "app/static/style.css",
+      "bytes": 35257,
+      "sha256": "4d59739f376893ad6d2ad346106e7bf0b47d5603e66c5777271a8cef34223e64",
+      "git_blob_sha1": "9c81a77c9db934c2eb0934bbbf0fa0fd6840fb01",
+      "byte_preserved": true
+    },
+    {
+      "path": "app/static/world3d.js",
+      "bytes": 22665,
+      "sha256": "aed898d583c753449f4dfa7d69ffb83d4ed6c58130028802c17b2edb2d58e2ca",
+      "git_blob_sha1": "4385ee64f3368b48b2c7d7b716f5c20b8a717afa",
+      "byte_preserved": true
+    },
+    {
+      "path": "app/static/world3d.test.cjs",
+      "bytes": 10234,
+      "sha256": "a45942ed7e63f8012b2c1079d9c15e9e252a0bfdd36964ceeefa4d0d9f5c7c0f",
+      "git_blob_sha1": "7478ac2900e5bda3df6ed1ffa39da9c2a884ff24",
+      "byte_preserved": true
+    },
+    {
+      "path": "app/test_providers.py",
+      "bytes": 19678,
+      "sha256": "0a343df171b0f0b9736a55d8bc12d8ebd54f18df2adf0e89b84a2e226cdf494a",
+      "git_blob_sha1": "3084ce7c114015e7850673b1101c15dd77a68e3f",
+      "byte_preserved": true
+    },
+    {
+      "path": "app/test_transport.py",
+      "bytes": 26937,
+      "sha256": "50dde41904b9df9f20a19d36df3e362fc45e10745b599c7e7d45bf6c213a2551",
+      "git_blob_sha1": "36e4df9bff575de8b95c4f07be184b381d9e4965",
+      "byte_preserved": true
+    },
+    {
+      "path": "app/test_workroom.py",
+      "bytes": 44434,
+      "sha256": "4b14f72c78be79ff06308eac001dbccf2a81df1777e228709077bba4c1487498",
+      "git_blob_sha1": "0f94f26b6fae1fa10e165ec5e34b533dd944bc0a",
+      "byte_preserved": true
+    },
+    {
+      "path": "app/transport.py",
+      "bytes": 42472,
+      "sha256": "7952bcb14918fef961e834b02ee4bab39eab4212bca04042530fb1a14a50470a",
+      "git_blob_sha1": "e34f51064495c83183d77f0e3de6110ddd403542",
+      "byte_preserved": true
+    },
+    {
+      "path": "app/verify_character_assets.py",
+      "bytes": 2465,
+      "sha256": "e6999c3d1ecd8ccbd2c9816c607ee16d9879f4ebb910f7d373f678b1a4d80362",
+      "git_blob_sha1": "108c4b9c9dafadd0205528e82d610636cd4b852d",
+      "byte_preserved": true
+    },
+    {
+      "path": "app/verify_http_transport.py",
+      "bytes": 3745,
+      "sha256": "2fbc10be5ae7aee3da89bf05fc29224c9f27ff7f6b18e14d22f42e001bbdfab5",
+      "git_blob_sha1": "eb24436bda6dcd224be0d32795b3868cde399c7b",
+      "byte_preserved": true
+    },
+    {
+      "path": "app/workroom.py",
+      "bytes": 73804,
+      "sha256": "60c1dd20448c2c9857957c75557857892bcf1ab80fbe5bd61f0d0267a7387193",
+      "git_blob_sha1": "5a6ef83fa4955e5ad490e8744efc1c12b46a454c",
+      "byte_preserved": true
+    },
+    {
+      "path": "contributions/claude/chat-integration/changed/fixtures/transport_child.py",
+      "bytes": 3209,
+      "sha256": "8ae8b242959d60f176edac40ab9bd5df4c17110e25af43d8560404b945028e26",
+      "git_blob_sha1": "6c201d1e23b06c32c4ab9b4f7300841fad47b702",
+      "byte_preserved": true
+    },
+    {
+      "path": "contributions/claude/chat-integration/changed/static/app.js",
+      "bytes": 64851,
+      "sha256": "cf720f1487d9b82f90a5b75192533fca1d485a38030b315ca078bf8b79117a26",
+      "git_blob_sha1": "8b532d8de490163647cd24436a9c72d1226aaa6d",
+      "byte_preserved": true
+    },
+    {
+      "path": "contributions/claude/chat-integration/changed/static/index.html",
+      "bytes": 6663,
+      "sha256": "b25d34e8313cd3c2c2adaff57caf1731b0bd3fd40214eb6be57bb8c39e04eb5b",
+      "git_blob_sha1": "3eef4ebfda69bf8d62cafc77f202ebece9925353",
+      "byte_preserved": true
+    },
+    {
+      "path": "contributions/claude/chat-integration/changed/static/style.css",
+      "bytes": 37874,
+      "sha256": "c61c8d6f4e28bcb4e0a21383824fc4abbaa29bc166d9c95768e1c05f73c16577",
+      "git_blob_sha1": "88846bada97c958d2f19f347d67272b54b4ce2a0",
+      "byte_preserved": true
+    },
+    {
+      "path": "contributions/claude/chat-integration/changed/test_chat.py",
+      "bytes": 19211,
+      "sha256": "a9728566425bba1eaf49560aeba3dce8bfb1301d500448dcfcbea60ed5176f86",
+      "git_blob_sha1": "83cc74e545e9a411205a1ee048b598403b569dce",
+      "byte_preserved": true
+    },
+    {
+      "path": "contributions/claude/chat-integration/changed/workroom.py",
+      "bytes": 90655,
+      "sha256": "da0911b04c0f7c2dbd56318b5307900ce3eefa6b16db27622cf792aad54da0d7",
+      "git_blob_sha1": "22aa724fb0e94486579e64c73ab90cd9c542eeb5",
+      "byte_preserved": true
+    },
+    {
+      "path": "contributions/claude/chat-integration/glance-chat.patch",
+      "bytes": 86572,
+      "sha256": "2ac7b385de65ff6e2f55a108fa22ef34661baa6fd11f7f81690703bf4b9d9d14",
+      "git_blob_sha1": "7c0dafbfd41ce113bd116ef93d12dc358cff5ef2",
+      "byte_preserved": true
+    },
+    {
+      "path": "contributions/gemini/unified-chat/source/fixtures/transport_child.py",
+      "bytes": 3387,
+      "sha256": "60effdc65ddadcfdcdbf1088b160a7652b29f59cc84d47276c6b00b89a6959a9",
+      "git_blob_sha1": "f8020794f8aa96112bed10ba9423252860f91491",
+      "byte_preserved": true
+    },
+    {
+      "path": "contributions/gemini/unified-chat/source/providers.py",
+      "bytes": 28049,
+      "sha256": "4e6020ea320a33d056f4772753d3ecae385fa5fda23b44904fc0c3f8f0882919",
+      "git_blob_sha1": "e862c97a09cb797d062abdc29f7e944aaf521293",
+      "byte_preserved": true
+    },
+    {
+      "path": "contributions/gemini/unified-chat/source/qa-fixtures/cancel-notes.txt",
+      "bytes": 81,
+      "sha256": "fc6ae276afb4e9a082604a6709e98961f2ceeb95a5e6704b58448fe71da1e7f6",
+      "git_blob_sha1": "3cda4c3d59463b31fd9cc9c7e960e066ed460ae5",
+      "byte_preserved": true
+    },
+    {
+      "path": "contributions/gemini/unified-chat/source/qa-fixtures/review-notes.txt",
+      "bytes": 213,
+      "sha256": "a6c4dd871086f31d5b89da687d628f1ae9dc3a24cddacfe253457a666ae1570d",
+      "git_blob_sha1": "f95ea2da7977da76019bb7e9d5c26a9a40446d7a",
+      "byte_preserved": true
+    },
+    {
+      "path": "contributions/gemini/unified-chat/source/qa-fixtures/save-notes.txt",
+      "bytes": 82,
+      "sha256": "8794c3d64933302d63fcd7c75f5c7864b14cb289ccfeca949c54c9b802b02c8a",
+      "git_blob_sha1": "b7a3ac9da7dbfacd5c8ecf9ec35c1bce413a01fc",
+      "byte_preserved": true
+    },
+    {
+      "path": "contributions/gemini/unified-chat/source/server.py",
+      "bytes": 9223,
+      "sha256": "2e1a383f44dd216cc555dbb79d0b97430ec327a94df9932bcb7d262002a174c9",
+      "git_blob_sha1": "c9ee491f573cfb77ec4384e937db87c824e32846",
+      "byte_preserved": true
+    },
+    {
+      "path": "contributions/gemini/unified-chat/source/static/app.js",
+      "bytes": 67152,
+      "sha256": "a80dd1e57255a38938588a67eedd75dbe7b08c056db3fdb73816bf1d8f30e966",
+      "git_blob_sha1": "40cd5a2880457a893140b541b00597bb6c8bcff6",
+      "byte_preserved": true
+    },
+    {
+      "path": "contributions/gemini/unified-chat/source/static/assets/claude-reference.png",
+      "bytes": 364727,
+      "sha256": "ab4f3ed04b1e7a7d87eb3b4a57f77f7cb8043b8ee647e75429c876036f34a1ae",
+      "git_blob_sha1": "2fdbaf4511ee271104574024d0172eb079e38fcb",
+      "byte_preserved": true
+    },
+    {
+      "path": "contributions/gemini/unified-chat/source/static/assets/codex-reference.png",
+      "bytes": 298534,
+      "sha256": "6b13e8c9493ed51023aa4c4b0222e2074540a255cdc9faed03e3d5a5142a8b5e",
+      "git_blob_sha1": "b2de6b010476ed980a9aea77ee663266973c575c",
+      "byte_preserved": true
+    },
+    {
+      "path": "contributions/gemini/unified-chat/source/static/assets/gemini-reference.jpg",
+      "bytes": 39186,
+      "sha256": "235775c37eecd6db38ac5bca6a93941e41a40a5ae4a02f1747bd7240a0aa5326",
+      "git_blob_sha1": "67cad9bf3e71ea21f80d031d9dec6931814dac08",
+      "byte_preserved": true
+    },
+    {
+      "path": "contributions/gemini/unified-chat/source/static/character.test.cjs",
+      "bytes": 3894,
+      "sha256": "357d747347b2ed5bb82b104c8fd1484ab0745c53e9033b105d3402e3a44251fd",
+      "git_blob_sha1": "32be5fbabfb8b795a99a12145cd40079a7bb37f0",
+      "byte_preserved": true
+    },
+    {
+      "path": "contributions/gemini/unified-chat/source/static/characters.json",
+      "bytes": 2556,
+      "sha256": "ffec94b9816888b967f5b2c82d14d0ced3017f9a81e3dead87a73b9ec6532fa1",
+      "git_blob_sha1": "0838370642f5f64c6a278a0248930c1af241d434",
+      "byte_preserved": false
+    },
+    {
+      "path": "contributions/gemini/unified-chat/source/static/glance-logo.svg",
+      "bytes": 1901,
+      "sha256": "09b9437ddebf7d438f9058ec7c897c4fd319731dfb039c72d741313a880bf2df",
+      "git_blob_sha1": "838f980046fc7d346dd244d22eda9637343411f3",
+      "byte_preserved": true
+    },
+    {
+      "path": "contributions/gemini/unified-chat/source/static/index.html",
+      "bytes": 7392,
+      "sha256": "1db886fc3d9c41a383792b27c343ef0f10c98365db6f8c1e3ffa5fc7cf5d5c88",
+      "git_blob_sha1": "4470042fd214cac06ead259ef0d3e92e9cf1971b",
+      "byte_preserved": true
+    },
+    {
+      "path": "contributions/gemini/unified-chat/source/static/projection.test.cjs",
+      "bytes": 3197,
+      "sha256": "5887768120b0ea448e4c99bddf638ff29b51794d1fcc5071cd06e8483fd69f1c",
+      "git_blob_sha1": "84d13adeba0d7c53ca92690ea0f387e2287dfffc",
+      "byte_preserved": true
+    },
+    {
+      "path": "contributions/gemini/unified-chat/source/static/style.css",
+      "bytes": 37630,
+      "sha256": "992fecc793403578c6bd932f75d9ceba2106749d75328bca0ed3e44c3d6c44d3",
+      "git_blob_sha1": "11f9e2d34c7d7041b1eb6fae8017ea8c09cd524b",
+      "byte_preserved": true
+    },
+    {
+      "path": "contributions/gemini/unified-chat/source/static/unified_chat.test.cjs",
+      "bytes": 3383,
+      "sha256": "bef1b55e66a89b73663236b0a5b84d97bae613db18043e265d665d59de220720",
+      "git_blob_sha1": "cd727dcf68150477debd611205ecee40fe4895fc",
+      "byte_preserved": true
+    },
+    {
+      "path": "contributions/gemini/unified-chat/source/static/world3d.js",
+      "bytes": 22665,
+      "sha256": "aed898d583c753449f4dfa7d69ffb83d4ed6c58130028802c17b2edb2d58e2ca",
+      "git_blob_sha1": "4385ee64f3368b48b2c7d7b716f5c20b8a717afa",
+      "byte_preserved": true
+    },
+    {
+      "path": "contributions/gemini/unified-chat/source/static/world3d.test.cjs",
+      "bytes": 10234,
+      "sha256": "a45942ed7e63f8012b2c1079d9c15e9e252a0bfdd36964ceeefa4d0d9f5c7c0f",
+      "git_blob_sha1": "7478ac2900e5bda3df6ed1ffa39da9c2a884ff24",
+      "byte_preserved": true
+    },
+    {
+      "path": "contributions/gemini/unified-chat/source/test_providers.py",
+      "bytes": 19678,
+      "sha256": "0a343df171b0f0b9736a55d8bc12d8ebd54f18df2adf0e89b84a2e226cdf494a",
+      "git_blob_sha1": "3084ce7c114015e7850673b1101c15dd77a68e3f",
+      "byte_preserved": true
+    },
+    {
+      "path": "contributions/gemini/unified-chat/source/test_transport.py",
+      "bytes": 26937,
+      "sha256": "50dde41904b9df9f20a19d36df3e362fc45e10745b599c7e7d45bf6c213a2551",
+      "git_blob_sha1": "36e4df9bff575de8b95c4f07be184b381d9e4965",
+      "byte_preserved": true
+    },
+    {
+      "path": "contributions/gemini/unified-chat/source/test_unified_chat.py",
+      "bytes": 16213,
+      "sha256": "b612ee841a82b47b02025c21b828b51ad8f1bd66553e2db569f96dffedf3f492",
+      "git_blob_sha1": "4e92fbeb5b7524e7ad7b167039d3c1f3958401d9",
+      "byte_preserved": true
+    },
+    {
+      "path": "contributions/gemini/unified-chat/source/test_workroom.py",
+      "bytes": 44434,
+      "sha256": "4b14f72c78be79ff06308eac001dbccf2a81df1777e228709077bba4c1487498",
+      "git_blob_sha1": "0f94f26b6fae1fa10e165ec5e34b533dd944bc0a",
+      "byte_preserved": true
+    },
+    {
+      "path": "contributions/gemini/unified-chat/source/transport.py",
+      "bytes": 42472,
+      "sha256": "7952bcb14918fef961e834b02ee4bab39eab4212bca04042530fb1a14a50470a",
+      "git_blob_sha1": "e34f51064495c83183d77f0e3de6110ddd403542",
+      "byte_preserved": true
+    },
+    {
+      "path": "contributions/gemini/unified-chat/source/verify_character_assets.py",
+      "bytes": 2465,
+      "sha256": "e6999c3d1ecd8ccbd2c9816c607ee16d9879f4ebb910f7d373f678b1a4d80362",
+      "git_blob_sha1": "108c4b9c9dafadd0205528e82d610636cd4b852d",
+      "byte_preserved": true
+    },
+    {
+      "path": "contributions/gemini/unified-chat/source/verify_http_transport.py",
+      "bytes": 3745,
+      "sha256": "2fbc10be5ae7aee3da89bf05fc29224c9f27ff7f6b18e14d22f42e001bbdfab5",
+      "git_blob_sha1": "eb24436bda6dcd224be0d32795b3868cde399c7b",
+      "byte_preserved": true
+    },
+    {
+      "path": "contributions/gemini/unified-chat/source/workroom.py",
+      "bytes": 99362,
+      "sha256": "b494dffaebe5faff76b80416e1e5c4cea15ed7844585ca93d09d5d151508103b",
+      "git_blob_sha1": "5284f7a7a1fa2565cec59425c9883d4cd4c0acf3",
+      "byte_preserved": true
+    },
+    {
+      "path": "contributions/gemini/unified-chat/test_unified_chat.py",
+      "bytes": 16212,
+      "sha256": "db3cde1d3d8a3ff00d078b4c3be7a0d15e126c25c39c39d9f3e7962fbc6316ca",
+      "git_blob_sha1": "02969e0b0c8d456e80f9933e674cf9690322997b",
+      "byte_preserved": true
+    },
+    {
+      "path": "contributions/gemini/unified-chat/unified-chat.diff",
+      "bytes": 142469,
+      "sha256": "4e007a377dae532f17cb69bf965be43c8b6b2b572450305c732041b42d13dcd6",
+      "git_blob_sha1": "9f2e2cb1b85fb055dfa40db4cd1963fd15251b6b",
+      "byte_preserved": true
+    },
+    {
+      "path": "evidence/gemini/independent-regression/fixtures/transport_child.py",
+      "bytes": 3209,
+      "sha256": "8ae8b242959d60f176edac40ab9bd5df4c17110e25af43d8560404b945028e26",
+      "git_blob_sha1": "6c201d1e23b06c32c4ab9b4f7300841fad47b702",
+      "byte_preserved": true
+    },
+    {
+      "path": "evidence/gemini/independent-regression/run_independent_regression.sh",
+      "bytes": 826,
+      "sha256": "2b0feee0606f2c4ae875103803524419a8e51855e9f1cc1bec0f880f1c5b5818",
+      "git_blob_sha1": "6370887d3f31f8b64de4c00080c42522099fd5da",
+      "byte_preserved": true
+    },
+    {
+      "path": "evidence/gemini/independent-regression/test_independent_chat_regression.py",
+      "bytes": 33138,
+      "sha256": "f393c51ee7b259840479e4cee512ca0cfe0785ae9c1e8cad8a5ecb483dfd7d1a",
+      "git_blob_sha1": "253b9f97bb886e90c19e083031126702d899db4e",
+      "byte_preserved": true
+    },
+    {
+      "path": "evidence/gemini/independent-regression/ui_independent_regression.test.cjs",
+      "bytes": 10310,
+      "sha256": "6981ce83b785cccb9b5c93ec13c31147d97e1232131e5a7a623b7edac3d62c97",
+      "git_blob_sha1": "decdc2f66a49ff2fd5b6e36ea91a45924deb7c26",
+      "byte_preserved": true
+    },
+    {
+      "path": "supplemental/meeting-contract/fixtures.json",
+      "bytes": 397942,
+      "sha256": "b2f9aa34e753127f503e849520d68183c3651b2e4e8f9b2c727a36ed9c15dbb3",
+      "git_blob_sha1": "65bac091f7d5eac05f7b0952184740fe43b52318",
+      "byte_preserved": true
+    },
+    {
+      "path": "supplemental/meeting-contract/meeting.schema.json",
+      "bytes": 46554,
+      "sha256": "b2972618a4b7aaaf7b49c583ea67ca6de5c1de62b981951c64ea4b688432ea48",
+      "git_blob_sha1": "91aa6da296c931fab6bbd4fcf881280c04e243f9",
+      "byte_preserved": true
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/index.html",
+      "bytes": 204305,
+      "sha256": "7592deec9708946771b25e007624c25e0fcb1827597536e156d64396ea4a6a8a",
+      "git_blob_sha1": "a7b9f9bd9f63777179fb19e15786ab7cfa1caa36",
+      "byte_preserved": true
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/reference/v1_index.html",
+      "bytes": 60856,
+      "sha256": "6de96627597329912e920e4e7611142130329205abc61b34ea2e25ae72fa7e58",
+      "git_blob_sha1": "6579e2c5c2ae9d57fa7b7cb623786de60087a8ce",
+      "byte_preserved": true
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/reference/v2_index.html",
+      "bytes": 117733,
+      "sha256": "d4d70904bed4b35763c03ca650aadcd8508fec15a09e7ce4706f59d2b7dda7cc",
+      "git_blob_sha1": "91601bf9fbd2ea7eaca5627a485bb169756aee73",
+      "byte_preserved": true
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/reference/v3_original/index.html",
+      "bytes": 200597,
+      "sha256": "22407bfdb9d96f01b911ab87827383ba67ccf51b5a9948e517f1e15f0caa9894",
+      "git_blob_sha1": "8fbd7a70c374c51240da4e07f246a27897e59c78",
+      "byte_preserved": true
+    },
+    {
+      "path": "supplemental/voxel-demo/v3-fix1/three.min.js",
+      "bytes": 603445,
+      "sha256": "9274bbcec8d96168626c732b5d31c775aa8cfb7eaa0599bec0c175908a2c1ce2",
+      "git_blob_sha1": "b14f47c0908bab15e890b468d53bb07db0be3a18",
+      "byte_preserved": true
+    },
+    {
+      "path": "README.md",
+      "bytes": 2475,
+      "sha256": "9161d42331588f3d63f40f7a4d4fab9666c7a8514de31ff6081587615d1eb6fb",
+      "git_blob_sha1": "2e122072b332438063a7c74c0dbc9c008e36f284",
+      "generated": true
+    },
+    {
+      "path": "PUBLIC-EXCLUSIONS.json",
+      "bytes": 46889,
+      "sha256": "8652a9afd253376aae61abb309f678d01336620b3961dee6dc3e50c7b2ada747",
+      "git_blob_sha1": "e5719f3628ec7f7147896ed1ab08ef30d1a9bae9",
+      "generated": true
+    }
+  ],
+  "manifest_excludes_itself_and_sha256sums": true
+}
