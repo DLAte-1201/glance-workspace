@@ -1,0 +1,9 @@
+__pycache__/
+.state/
+.state-verified/
+.test-tmp/
+*.pyc
+server-stdout.log
+server-stderr.log
+server.pid
+.library-transfer-glance/
