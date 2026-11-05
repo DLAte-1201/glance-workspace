@@ -425,6 +425,20 @@ class HTTPTests(unittest.TestCase):
         return {"Content-Type": "application/json", "X-Workroom-Token": self.server.session_token,
                 "Origin": "http://127.0.0.1:" + str(self.port)}
 
+    def test_resident_status_uses_observations_and_existing_http_guards(self):
+        status, body = self.request(path="/api/status")
+        self.assertEqual(200, status)
+        self.assertEqual(3, len(body["agents"]))
+        self.assertTrue(all(a["online"] is None for a in body["agents"]))
+        path = Path(self.tmp.name) / "resident-status.json"
+        path.write_text(json.dumps({"agents": {"claude": {"online": False, "working": False,
+                        "observed_at": "2099-01-01T00:00:00Z"}}}), encoding="utf-8")
+        self.server.resident_status_path = path
+        status, body = self.request(path="/api/status")
+        self.assertEqual("observation_invalid", body["agents"][1]["reason"])
+        self.assertEqual(403, self.request(path="/api/status", headers={"Host": "foreign.invalid"})[0])
+        self.assertEqual(403, self.request(path="/api/status", headers={"Origin": "https://foreign.invalid"})[0])
+
     def test_get_state_and_authenticated_write(self):
         status, state = self.request()
         self.assertEqual(200, status)
