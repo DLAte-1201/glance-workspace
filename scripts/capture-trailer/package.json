@@ -1,0 +1,1 @@
+{"name":"glance-capture-trailer","private":true,"type":"module","scripts":{"capture":"node capture.mjs","test":"node --test capture.test.mjs"},"devDependencies":{"playwright":"1.62.1"}}

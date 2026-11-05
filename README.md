@@ -15,3 +15,11 @@ Two `characters.json` files have three `source_path` values each replaced by a p
 `PUBLIC-MANIFEST.json` gives hashes of selected content and notes metadata changes. `PUBLIC-EXCLUSIONS.json` lists omitted paths without their private contents. SHA256SUMS covers all files except itself. Original package manifests are intentionally not reused as public evidence.
 
 Latest Claude submission-ID/fingerprint correction and Gemini revised regression suite remain unconfirmed. No candidate patch has been integrated by this packaging step. Three-provider repository access and real execution are unverified. Public source visibility alone does not establish integration. Do not auto-run login, provider requests or deployment from this package.
+
+## Local trailer capture (T4)
+
+The isolated Playwright/ffmpeg pipeline and execution commands are in
+[`scripts/capture-trailer/README.md`](scripts/capture-trailer/README.md).
+It exports 1080p MP4/WebM, a poster and timed VTT. Real-scene completion depends
+on a local Glance instance that can answer and build; pipeline tests use a
+clearly labeled synthetic fixture. See `STATUS.md` for the task result.
