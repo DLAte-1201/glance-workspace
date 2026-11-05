@@ -1,0 +1,13 @@
+{
+  "name": "glance-launcher-t3",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-11-05",
+  "workers_dev": false,
+  "d1_databases": [{
+    "binding": "DB",
+    "database_name": "glance-waitlist",
+    // Local-only placeholder; the owner must supply the existing D1 ID for deployment.
+    "database_id": "00000000-0000-0000-0000-000000000000",
+    "migrations_dir": "migrations"
+  }]
+}
