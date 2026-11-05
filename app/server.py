@@ -11,6 +11,7 @@ import socket
 from urllib.parse import unquote, urlsplit
 
 from workroom import DomainError, Workroom
+from resident_status import resident_status
 
 MAX_BODY = 1024 * 1024
 STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
@@ -49,10 +50,11 @@ class LocalServer(ThreadingHTTPServer):
             self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
         super().server_bind()
 
-    def __init__(self, address, workroom, static_dir=None):
+    def __init__(self, address, workroom, static_dir=None, resident_status_path=None):
         if address[0] not in ("127.0.0.1", "localhost", "::1"):
             raise ValueError("Only loopback binding is allowed")
         self.workroom = workroom
+        self.resident_status_path = resident_status_path
         self.static_dir = Path(static_dir or Path(__file__).with_name("static"))
         self.session_token = secrets.token_urlsafe(32)
         super().__init__(address, Handler)
@@ -116,6 +118,8 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/health":
                 self._send(200, {"ok": self.server.workroom.storage_error is None,
                                  "storage_writable": self.server.workroom.storage_error is None, "external_execution_enabled": False})
+            elif path == "/api/status":
+                self._send(200, resident_status(self.server.resident_status_path))
             elif path in STATIC:
                 name, mime = STATIC[path]
                 file = self.server.static_dir / name
@@ -176,9 +180,10 @@ def main():
     parser.add_argument("--port", type=int, default=8874)
     parser.add_argument("--data-dir", default=str(Path(__file__).with_name(".state")))
     parser.add_argument("--host", choices=["127.0.0.1", "localhost"], default="127.0.0.1")
+    parser.add_argument("--resident-status", help="Local runtime observation JSON; absent telemetry returns unknown")
     args = parser.parse_args()
     workroom = Workroom(args.data_dir)
-    server = LocalServer((args.host, args.port), workroom)
+    server = LocalServer((args.host, args.port), workroom, resident_status_path=args.resident_status)
     print(f"Glance: http://{args.host}:{server.server_port} (external execution disabled)", flush=True)
     try:
         server.serve_forever()
