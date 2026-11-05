@@ -1,0 +1,5 @@
+T3 | BLOCKED (local backend DONE; site integration and live Access/D1 unavailable) | PR: https://github.com/DLAte-1201/glance-workspace/pull/2 | cd launcher-t3 && npm ci && npm test && npm run db:local && npm run check; npm run dev -- --port 8789
+
+Local evidence (2026-11-05): 4 tests passed, local D1 migration applied, Wrangler dry-run bundled, and local workerd HTTP checks passed (fixed login redirect, insert, duplicate, invalid form). SQL query confirmed one synthetic waitlist row after two identical submissions. No production resources changed.
+
+BLOCKED actions: provide the separate launcher development working copy to wire and test the existing CTA/form; the public static site repository is present at /workspace/dlate-1201.github.io but has no Glance launcher source; provide the existing Cloudflare token, account/D1 binding and Access application details to validate the protected destination. Access policy creation or changes, remote migration, merge and deployment were not performed.

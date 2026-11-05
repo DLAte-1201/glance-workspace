@@ -1,0 +1,14 @@
+{
+  "name": "glance-launcher-t3",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test worker.test.mjs",
+    "dev": "wrangler dev --local",
+    "db:local": "wrangler d1 migrations apply DB --local",
+    "check": "wrangler deploy --dry-run --outdir dist"
+  },
+  "devDependencies": {
+    "wrangler": "4.158.0"
+  }
+}
