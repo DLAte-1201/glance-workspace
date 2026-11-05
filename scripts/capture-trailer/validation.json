@@ -1,0 +1,61 @@
+{
+  "date": "2026-11-05",
+  "baseline": "d482c2f9be6659aec095c0bc3eac7fdf703b261b",
+  "synthetic": {
+    "task": "T4",
+    "mode": "synthetic-test",
+    "status": "DONE",
+    "scenes": [
+      {
+        "name": "instruction",
+        "at": 0.30223164599999996
+      },
+      {
+        "name": "resident-dialogue",
+        "at": 1.094163383
+      },
+      {
+        "name": "building",
+        "at": 3.126671623
+      },
+      {
+        "name": "camera",
+        "at": 4.6278034340000005
+      }
+    ],
+    "media": {
+      "trailer.mp4": {
+        "width": 1920,
+        "height": 1080,
+        "seconds": 7.7,
+        "codec": "h264"
+      },
+      "trailer.webm": {
+        "width": 1920,
+        "height": 1080,
+        "seconds": 7.7,
+        "codec": "vp9"
+      }
+    }
+  },
+  "actualPublicBaseline": {
+    "task": "T4",
+    "mode": "local-glance",
+    "status": "BLOCKED",
+    "scenes": [
+      {
+        "name": "instruction",
+        "at": 0.5241376879999999
+      }
+    ],
+    "blockedAt": "resident-dialogue",
+    "reason": "Required scene signal did not arrive within the 28-second recording budget"
+  },
+  "tests": "3 passed",
+  "browser": "system Chromium 151.0.7922.173",
+  "limitations": [
+    "Actual build-capable local Glance instance is not available in this cloud task.",
+    "Playwright browser download returned HTTP 403 Domain forbidden; installed browser and ffmpeg were used.",
+    "Source specs and .agents/skills were absent from repository; both supplied attachments were read."
+  ]
+}

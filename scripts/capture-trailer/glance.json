@@ -1,0 +1,10 @@
+{
+  "url": "http://127.0.0.1:8874",
+  "input": "#message-input",
+  "submit": "#send-button",
+  "residents": "#messages .message:not(.user)",
+  "world": "#world-toggle",
+  "buildCounter": "#verified-count",
+  "camera": ["[data-camera='left']", "[data-camera='center']", "[data-camera='right']"],
+  "prompt": "작업실에 새 건물을 만들어 주세요. 주민끼리 계획을 대화하고 결과를 월드에 반영해 주세요."
+}
